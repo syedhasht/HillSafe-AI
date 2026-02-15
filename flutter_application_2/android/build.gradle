@@ -1,0 +1,33 @@
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+ext {
+    compileSdkVersion = 34
+    minSdkVersion = 21
+    targetSdkVersion = 34
+    
+    // Mock the flutter object for plugins that expect it
+    flutter = [
+        compileSdkVersion: 34,
+        minSdkVersion: 21,
+        targetSdkVersion: 34,
+        versionCode: 1,
+        versionName: "1.0.0"
+    ]
+}
+
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}

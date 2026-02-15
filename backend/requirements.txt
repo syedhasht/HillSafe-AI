@@ -1,0 +1,32 @@
+# Django Framework
+django==5.0.1
+djangorestframework==3.14.0
+
+# Database
+psycopg2-binary>=2.9.11
+
+# Environment & Security
+python-dotenv==1.0.1
+django-cors-headers==4.3.1
+
+# Machine Learning (Python 3.12 compatible)
+scikit-learn>=1.4.2
+pandas>=2.2.1
+numpy>=1.26.4
+tensorflow-cpu>=2.16.1
+
+# Additional ML Dependencies
+joblib>=1.4.0
+scipy>=1.12.0
+
+# API & Data Processing
+requests==2.31.0
+python-dateutil==2.9.0
+
+# PostGIS Support (Geospatial)
+django-geojson==4.1.0
+
+# Utilities
+pytz==2024.1
+pillow>=10.2.0
+firebase-admin==6.4.0
