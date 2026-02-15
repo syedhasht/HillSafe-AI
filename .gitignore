@@ -53,3 +53,7 @@ android/GeneratedPluginRegistrant.java
 .vscode/
 *.swp
 *.swo
+
+# Sensitive credentials
+backend/serviceAccountKey.json
+serviceAccountKey.json
