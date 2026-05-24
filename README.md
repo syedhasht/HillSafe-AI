@@ -115,7 +115,7 @@ venv\Scripts\activate
 **On macOS/Linux:**
 ```bash
 source venv/bin/activate
-```
+
 
 **Option B: Create New Virtual Environment (If needed)**
 
