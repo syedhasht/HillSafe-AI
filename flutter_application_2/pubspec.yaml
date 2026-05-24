@@ -24,7 +24,7 @@ dependencies:
   flutter_animate: ^4.5.0
   
   # Modern iconography
-  lucide_icons: ^0.257.0
+  lucide_icons_flutter: any
   
   # Persistent Storage
   shared_preferences: ^2.2.2
