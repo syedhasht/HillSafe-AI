@@ -26,7 +26,7 @@ Built for the mountainous regions of Pakistan (Murree, Swat, Kohistan, Hunza, an
 4. The model returns a **risk score** (Low / Moderate / High).
 5. If the risk is high, an **alert is automatically created** and a **push notification is sent** to all users in that region.
 
-This entire cycle also runs automatically every **30 minutes** on the server, scanning all monitored regions even while you sleep.
+This entire cycle also runs automatically every **10 minutes** on the server, scanning all monitored regions even while you sleep.
 
 ---
 
