@@ -1,7 +1,12 @@
 from django.urls import path
+from django.http import JsonResponse
 from .views import CustomLoginView, RegionListView, AlertListView, AnalyticsView, SensorDataView, DistrictsView, SafetyStatusView, MarkSafeView
 
+def api_index(request):
+    return JsonResponse({"message": "HillSafe-AI API Endpoints", "status": "online"})
+
 urlpatterns = [
+    path('', api_index, name='api-index'),
     path('login/', CustomLoginView.as_view(), name='api-login'),
     path('regions/', RegionListView.as_view(), name='api-regions'),
     path('alerts/', AlertListView.as_view(), name='api-alerts'),
