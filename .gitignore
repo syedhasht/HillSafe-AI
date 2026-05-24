@@ -51,9 +51,14 @@ android/GeneratedPluginRegistrant.java
 # IDEs
 .idea/
 .vscode/
+
+# Gradle cache (build artifacts)
+.gradle-user-home/
 *.swp
 *.swo
 
-# Sensitive credentials
-backend/serviceAccountKey.json
-serviceAccountKey.json
+# Old folder name (moved to Frontend App)
+flutter_application_2/
+
+# Deployment / Production
+Backend/staticfiles/

@@ -1,0 +1,89 @@
+name: frontend_app
+description: "HillSafe AI - Disaster Early Warning System"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.4 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+  
+  # State Management
+  provider: ^6.1.1
+  
+  # Premium fonts
+  google_fonts: ^6.2.1
+  
+  # Smooth animations
+  flutter_animate: ^4.5.0
+  
+  # Modern iconography
+  lucide_icons_flutter: any
+  
+  # Persistent Storage
+  shared_preferences: ^2.2.2
+  
+  # HTTP client for API calls
+  http: ^1.2.0
+  
+  # Secure storage for tokens
+  flutter_secure_storage: ^9.0.0
+  
+  # Date formatting
+  intl: ^0.19.0
+  
+  # Map visualization
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  
+  # Firebase - Push Notifications
+  firebase_core: 3.4.0
+  firebase_messaging: 15.1.0
+  
+  # URL Launcher
+  url_launcher: ^6.2.4
+  
+  # Location Services
+  geolocator: ^12.0.0
+  permission_handler: ^11.0.0
+  
+  # Local Notifications
+  flutter_local_notifications: ^17.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  
+  # App Icon Generator
+  flutter_launcher_icons: ^0.13.1
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^4.0.0
+
+# Flutter Launcher Icons Configuration
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
+  adaptive_icon_background: "#1E293B"
+  adaptive_icon_foreground: "assets/images/logo.png"
+
+flutter:
+  uses-material-design: true
+
+  # Assets
+  assets:
+    - assets/images/
+
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package

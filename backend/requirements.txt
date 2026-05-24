@@ -30,3 +30,6 @@ django-geojson==4.1.0
 pytz==2024.1
 pillow>=10.2.0
 firebase-admin==6.4.0
+
+# Production Server
+gunicorn==23.0.0

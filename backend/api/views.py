@@ -22,6 +22,8 @@ class CustomLoginView(APIView):
     Response: { "token": "<token>", "role": "COMMUNITY", "username": "johndoe", "user_id": 1 }
     """
     
+    permission_classes = [permissions.AllowAny]
+    
     def post(self, request):
         username = request.data.get('username')
         phone_number = request.data.get('phone_number')

@@ -67,7 +67,11 @@ class HillSafePredictor:
         try:
             import tensorflow as tf
             lstm_path = os.path.join(models_dir, 'rainfall_lstm.h5')
-            self.lstm_model = tf.keras.models.load_model(lstm_path)
+            self.lstm_model = tf.keras.models.load_model(
+                lstm_path,
+                compile=False,
+                safe_mode=False
+            )
             print(f"✓ LSTM model loaded successfully")
         except FileNotFoundError:
             print(f"⚠️ WARNING: rainfall_lstm.h5 not found at {lstm_path}")
@@ -105,15 +109,39 @@ class HillSafePredictor:
             return 0.0
         
         try:
-            # Prepare input features as numpy array
-            # Shape: (1, 4) for single prediction
-            features = np.array([[rainfall, slope, soil, lithology]])
+            # Model was trained on 12 features:
+            # Aspect, Curvature, Earthquake, Elevation, Flow, Lithology,
+            # NDVI, NDWI, Plan, Precipitation, Profile, Slope
+            #
+            # API provides: rainfall (~Precipitation), slope (~Slope),
+            #               soil (unused), lithology (~Lithology)
+            # Defaults for missing features use median/typical values
             
-            # Get probability predictions
-            # predict_proba returns [[prob_safe, prob_danger]]
+            feature_defaults = {
+                'Aspect': 3, 'Curvature': 2, 'Earthquake': 2,
+                'Elevation': 2, 'Flow': 2, 'NDVI': 2,
+                'NDWI': 2, 'Plan': 2, 'Profile': 2
+            }
+            
+            features = np.array([[
+                feature_defaults['Aspect'],
+                feature_defaults['Curvature'],
+                feature_defaults['Earthquake'],
+                feature_defaults['Elevation'],
+                feature_defaults['Flow'],
+                float(lithology),
+                feature_defaults['NDVI'],
+                feature_defaults['NDWI'],
+                feature_defaults['Plan'],
+                float(rainfall),
+                feature_defaults['Profile'],
+                float(slope),
+            ]])
+            
+            if self.scaler is not None and hasattr(self.scaler, 'n_features_in_') and self.scaler.n_features_in_ == features.shape[1]:
+                features = self.scaler.transform(features)
+            
             probabilities = self.rf_model.predict_proba(features)
-            
-            # Return probability of danger (second column)
             risk_score = float(probabilities[0][1])
             
             print(f"Prediction: rainfall={rainfall}, slope={slope}, soil={soil}, lithology={lithology} → risk={risk_score:.3f}")

@@ -21,7 +21,7 @@ if not firebase_admin._apps:
         print("✓ Firebase Admin SDK initialized successfully")
     except FileNotFoundError:
         print("⚠️ WARNING: serviceAccountKey.json not found!")
-        print(f"   Expected location: {SERVICE_ACCOUNT_KEY_PATH}")
+        print(f"   Expected location: {SERVICE_ACCOUNT_KEY_PATH.replace('backend', 'Backend')}")
         print("   Firebase push notifications will NOT work until you add this file.")
         print("   Download it from Firebase Console → Project Settings → Service Accounts")
     except Exception as e:

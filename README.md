@@ -25,19 +25,19 @@ HillSafe AI is a comprehensive disaster early warning system designed to monitor
 - **Notifications**: Firebase Messaging, flutter_local_notifications
 
 ## Project Structure
-- `backend/`: Contains the Django project, including apps for alerts, predictions, regions, and data ingestion.
-- `flutter_application_2/`: The Flutter mobile application source code.
+- `Backend/`: Contains the Django project, including apps for alerts, predictions, regions, and data ingestion.
+- `Frontend App/`: The Flutter mobile application source code.
 - `Datasets/`: Datasets used for training ML models.
 
 ## Quick Start (If You Already Have the Project)
 
-> **Note**: This project includes a pre-configured virtual environment (`venv`) in the `backend` folder. If you already have the project cloned, follow these quick steps:
+> **Note**: This project includes a pre-configured virtual environment (`venv`) in the `Backend` folder. If you already have the project cloned, follow these quick steps:
 
 ### Option 1: Using Existing Virtual Environment (Fastest)
 
 **Backend:**
 ```bash
-cd backend
+cd Backend
 venv\Scripts\activate          # Windows
 # OR
 source venv/bin/activate       # macOS/Linux
@@ -52,7 +52,7 @@ python manage.py runserver
 
 **Frontend:**
 ```bash
-cd flutter_application_2
+cd "Frontend App"
 flutter pub get
 flutter run
 ```
@@ -60,7 +60,7 @@ flutter run
 ### Option 2: Using Automated Setup Script (Windows Only)
 
 ```bash
-cd backend
+cd Backend
 setup_django.bat
 ```
 
@@ -98,7 +98,7 @@ cd hillsafe-ai
 
 ### Step 2: Navigate to Backend Directory
 ```bash
-cd backend
+cd Backend
 ```
 
 ### Step 3: Activate or Create Virtual Environment
@@ -142,7 +142,7 @@ pip install -r requirements.txt
 
 ### Step 5: Configure Environment Variables
 
-> **Note**: A `.env` file already exists in the `backend` directory with default configuration. You can use it as-is for development or customize it as needed.
+> **Note**: A `.env` file already exists in the `Backend` directory with default configuration. You can use it as-is for development or customize it as needed.
 
 The existing `.env` file contains:
 ```bash
@@ -185,7 +185,7 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-The backend API will be available at: `http://127.0.0.1:8000/`
+The Backend API will be available at: `http://127.0.0.1:8000/`
 
 ---
 
@@ -201,7 +201,7 @@ flutter doctor
 
 ### Step 2: Navigate to Flutter Directory
 ```bash
-cd flutter_application_2
+cd "Frontend App"
 ```
 
 ### Step 3: Install Dependencies
@@ -210,7 +210,7 @@ flutter pub get
 ```
 
 ### Step 4: Configure API Endpoint
-Update the API base URL in the app to point to your backend:
+Update the API base URL in the app to point to your Backend:
 - Open `lib/services/api_service.dart`
 - Update the `baseUrl` to match your backend server (e.g., `http://127.0.0.1:8000/api/`)
 
@@ -281,7 +281,7 @@ flutter pub get
 ```
 
 **Issue: API connection fails**
-- Ensure backend server is running
+- Ensure Backend server is running
 - Check API endpoint URL in `api_service.dart`
 - For Android emulator, use `http://10.0.2.2:8000/` instead of `localhost`
 
@@ -291,14 +291,14 @@ flutter pub get
 
 ### Terminal 1 - Backend
 ```bash
-cd backend
+cd Backend
 venv\Scripts\activate  # On Windows
 python manage.py runserver
 ```
 
 ### Terminal 2 - Frontend
 ```bash
-cd flutter_application_2
+cd "Frontend App"
 flutter run
 ```
 
@@ -308,9 +308,9 @@ flutter run
 
 ### Firebase Setup (for Push Notifications)
 1. Create a Firebase project at https://console.firebase.google.com/
-2. Download `google-services.json` (Android) and place in `flutter_application_2/android/app/`
-3. Download `GoogleService-Info.plist` (iOS) and place in `flutter_application_2/ios/Runner/`
-4. Update Firebase configuration in the backend
+2. Download `google-services.json` (Android) and place in `Frontend App/android/app/`
+3. Download `GoogleService-Info.plist` (iOS) and place in `Frontend App/ios/Runner/`
+4. Update Firebase configuration in the Backend
 
 ### PostgreSQL Setup (Production)
 1. Install PostgreSQL

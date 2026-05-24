@@ -8,8 +8,8 @@
 # Navigate to project root
 cd C:\Users\hashi\Downloads\FYP
 
-# Create backend directory (already created when requirements.txt was added)
-# cd backend
+# Create Backend directory (already created when requirements.txt was added)
+# cd Backend
 
 # Create Python virtual environment
 python -m venv venv
@@ -59,10 +59,10 @@ python manage.py startapp alerts
 
 ### 5. Verify Directory Structure
 
-Your backend directory should now look like:
+Your Backend directory should now look like:
 
 ```
-backend/
+Backend/
 ├── venv/                    # Virtual environment
 ├── hillsafe_core/           # Django project settings
 │   ├── __init__.py
@@ -108,7 +108,7 @@ After setup, you'll need to:
 
 ```powershell
 # 1. Navigate and create venv
-cd C:\Users\hashi\Downloads\FYP\backend
+cd C:\Users\hashi\Downloads\FYP\Backend
 python -m venv venv
 .\venv\Scripts\activate
 

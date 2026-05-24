@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "720436900021",
+    "project_id": "hillsafe-ai",
+    "storage_bucket": "hillsafe-ai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:720436900021:android:52eb5e24d1e4f6555e0efc",
+        "android_client_info": {
+          "package_name": "com.example.frontend_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxu80yRJ_0p_RXrNGJs5hGQegC2hGq_9M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

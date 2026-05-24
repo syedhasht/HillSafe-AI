@@ -6,7 +6,7 @@ Provides REST API endpoints for machine learning predictions.
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, permissions
 from .predictor import HillSafePredictor
 
 
@@ -32,6 +32,8 @@ class PredictRiskView(APIView):
         "model_status": "ready"
     }
     """
+    
+    permission_classes = [permissions.AllowAny]
     
     def post(self, request):
         # Extract parameters from request
@@ -122,6 +124,8 @@ class ModelStatusView(APIView):
         "status": "ready"
     }
     """
+    
+    permission_classes = [permissions.AllowAny]
     
     def get(self, request):
         predictor = HillSafePredictor()

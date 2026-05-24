@@ -5,7 +5,7 @@ Provides endpoints to trigger data ingestion and processing with real weather da
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, permissions
 from regions.models import Region
 from alerts.models import Alert
 from data_ingestion.services import fetch_weather_data
@@ -21,6 +21,8 @@ class TriggerIngestionView(APIView):
     - Region risk scores based on rainfall
     - Automatic alert creation for high-risk conditions
     """
+    
+    permission_classes = [permissions.AllowAny]
     
     def post(self, request):
         regions = Region.objects.all()
