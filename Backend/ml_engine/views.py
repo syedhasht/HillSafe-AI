@@ -19,6 +19,8 @@ def _risk_level(score):
         return 'HIGH', False
     if score > 0.3:
         return 'MODERATE', False
+    if score < 0.15:
+        return 'NO RISK', True
     return 'LOW', True
 
 
@@ -365,15 +367,7 @@ class PredictRiskView(APIView):
         risk_score = predictor.predict_risk(rainfall, slope, soil, lithology)
         
         # Determine risk level
-        if risk_score > 0.7:
-            risk_level = 'HIGH'
-            is_safe = False
-        elif risk_score > 0.3:
-            risk_level = 'MODERATE'
-            is_safe = False
-        else:
-            risk_level = 'LOW'
-            is_safe = True
+        risk_level, is_safe = _risk_level(risk_score)
         
         # Return prediction result
         return Response(
