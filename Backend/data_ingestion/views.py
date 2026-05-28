@@ -10,11 +10,7 @@ from regions.models import Region
 from alerts.models import Alert
 from data_ingestion.services import fetch_weather_data
 from ml_engine.predictor import HillSafePredictor
-from ml_engine.views import (
-    _get_or_create_terrain_sample,
-    _precipitation_code,
-    _terrain_defaults_from_region,
-)
+from ml_engine.risk_pipeline import predict_region_risk
 
 
 class TriggerIngestionView(APIView):
@@ -58,47 +54,19 @@ class TriggerIngestionView(APIView):
             )
 
         for region in regions:
-            # Fetch live weather data
-            weather_data = fetch_weather_data(region)
-            
-            if weather_data is None:
+            try:
+                prediction = predict_region_risk(region)
+            except Exception as exc:
                 results.append({
                     'region_id': region.id,
                     'region_name': region.name,
-                    'error': 'Failed to fetch weather data'
+                    'error': str(exc),
                 })
                 continue
-            
-            rainfall_mm = weather_data['rainfall_mm']
-            temperature = weather_data['temperature']
 
-            terrain_defaults = _terrain_defaults_from_region(region)
-            terrain_sample, terrain_source = _get_or_create_terrain_sample(
-                region.latitude,
-                region.longitude,
-            )
-            terrain = {
-                'slope': terrain_sample.slope_code or terrain_defaults['slope'],
-                'soil': terrain_sample.soil_code or terrain_defaults['soil'],
-                'lithology': terrain_sample.lithology_code or terrain_defaults['lithology'],
-                'elevation': terrain_sample.elevation_code or terrain_defaults['elevation'],
-                'ndvi': terrain_sample.ndvi_code or terrain_defaults['ndvi'],
-                'ndwi': terrain_sample.ndwi_code or terrain_defaults['ndwi'],
-            }
-
-            risk_score = predictor.predict_risk(
-                _precipitation_code(rainfall_mm),
-                terrain['slope'],
-                terrain['soil'],
-                terrain['lithology'],
-                terrain_features={
-                    'Elevation': terrain['elevation'],
-                    'NDVI': terrain['ndvi'],
-                    'NDWI': terrain['ndwi'],
-                },
-            )
-
-            region.current_risk_score = risk_score
+            rainfall_mm = prediction['weather']['rainfall_mm']
+            temperature = prediction['weather']['temperature']
+            region.current_risk_score = prediction['risk_score']
             
             region.save()
             updated_count += 1
@@ -133,7 +101,7 @@ class TriggerIngestionView(APIView):
                 'rainfall_mm': round(rainfall_mm, 2),
                 'temperature': round(temperature, 2),
                 'risk_score': round(region.current_risk_score, 2),
-                'terrain_source': terrain_source,
+                'terrain_source': prediction['terrain_source'],
                 'alert_created': alert_created
             })
         

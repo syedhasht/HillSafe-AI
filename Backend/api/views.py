@@ -4,9 +4,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
+from django.utils import timezone
 from accounts.models import User
 from regions.models import Region
 from alerts.models import Alert
+from ml_engine.risk_pipeline import predict_region_risk
 from .serializers import UserSerializer, RegionSerializer, AlertSerializer
 
 
@@ -68,6 +70,29 @@ class RegionListView(generics.ListAPIView):
     queryset = Region.objects.all()
     serializer_class = RegionSerializer
     permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        refresh = self.request.query_params.get('refresh', 'true').lower() != 'false'
+        if refresh:
+            refresh_stale_region_risks()
+        return Region.objects.all()
+
+
+def refresh_stale_region_risks(max_age_minutes=15, max_regions=3):
+    cutoff = timezone.now() - timezone.timedelta(minutes=max_age_minutes)
+    stale_regions = list(
+        Region.objects.filter(last_updated__lt=cutoff).order_by('last_updated')[:max_regions]
+    )
+
+    for region in stale_regions:
+        try:
+            prediction = predict_region_risk(region)
+        except Exception as exc:
+            print(f"Region risk refresh failed for {region.name}: {exc}")
+            continue
+
+        region.current_risk_score = prediction['risk_score']
+        region.save(update_fields=['current_risk_score', 'updated_at', 'last_updated'])
 
 
 class AlertListView(generics.ListAPIView):
