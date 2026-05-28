@@ -24,6 +24,7 @@ class _WeatherRiskWidgetState extends State<WeatherRiskWidget> with SingleTicker
   // State variables
   // State variables
   bool _isLoading = true;
+  bool _isRefreshingSilently = false;
   String? _errorMessage;
   Map<String, dynamic>? _nearestRegion;
   Map<String, dynamic>? _weatherData;
@@ -52,23 +53,28 @@ class _WeatherRiskWidgetState extends State<WeatherRiskWidget> with SingleTicker
     super.dispose();
   }
   
-  /// Setup auto-refresh every 30 seconds for a "live" feel
+  /// Setup periodic refresh without interrupting the visible card.
   void _setupAutoRefresh() {
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      _loadData();
+    _autoRefreshTimer = Timer.periodic(const Duration(minutes: 15), (_) {
+      _loadData(silent: true);
     });
   }
   
   /// Main data loading function
-  Future<void> _loadData() async {
+  Future<void> _loadData({bool silent = false}) async {
     if (_isLoading && _nearestRegion != null) return; // Prevent double loads
+    if (_isRefreshingSilently) return;
     
-    _animationController.repeat();
-    
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    final shouldRefreshSilently = silent && _nearestRegion != null;
+    if (shouldRefreshSilently) {
+      _isRefreshingSilently = true;
+    } else {
+      _animationController.repeat();
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
     
     try {
       // Step 1: Check location permission
@@ -132,16 +138,20 @@ class _WeatherRiskWidgetState extends State<WeatherRiskWidget> with SingleTicker
           _lastUpdated = DateTime.now();
           _isLoading = false;
         });
-        _animationController.stop();
+        if (!shouldRefreshSilently) {
+          _animationController.stop();
+        }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !shouldRefreshSilently) {
         setState(() {
           _errorMessage = e.toString();
           _isLoading = false;
         });
         _animationController.stop();
       }
+    } finally {
+      _isRefreshingSilently = false;
     }
   }
   
