@@ -284,39 +284,71 @@ class SafetyStatusView(APIView):
     
     def get(self, request):
         from accounts.models import User
+        from reports.models import SafetyStatus
         
         regions = Region.objects.all()
         safety_data = []
+        active_cutoff = timezone.now() - timezone.timedelta(minutes=30)
         
         for region in regions:
-            safe_count = User.objects.filter(
-                location_region=region,
-                is_safe=True
-            ).count()
-            
-            total_users = User.objects.filter(
-                location_region=region,
-                role='COMMUNITY'
-            ).count()
-            
+            safe_checkins = SafetyStatus.objects.filter(
+                region=region,
+                is_safe=True,
+                last_marked_at__gte=active_cutoff,
+            )
+            safe_count = safe_checkins.count()
+            total_users = User.objects.filter(role='COMMUNITY').count()
+            latest_checkin = safe_checkins.select_related('user').order_by('-last_marked_at').first()
+
+            latest_data = None
+            if latest_checkin:
+                latest_data = {
+                    'user_name': latest_checkin.user.username,
+                    'area_name': latest_checkin.area_name,
+                    'latitude': latest_checkin.latitude,
+                    'longitude': latest_checkin.longitude,
+                    'last_marked_at': latest_checkin.last_marked_at,
+                }
+
             safety_data.append({
                 'region_id': region.id,
                 'region_name': region.name,
                 'district': region.district,
                 'safe_count': safe_count,
                 'total_users': total_users,
-                'percentage': round((safe_count / total_users * 100) if total_users > 0 else 0, 1)
+                'percentage': round((safe_count / total_users * 100) if total_users > 0 else 0, 1),
+                'latest_checkin': latest_data,
+            })
+
+        active_safe = SafetyStatus.objects.filter(
+            is_safe=True,
+            last_marked_at__gte=active_cutoff,
+        )
+        recent_checkins = []
+        for checkin in active_safe.select_related('user', 'region').order_by('-last_marked_at')[:10]:
+            recent_checkins.append({
+                'id': checkin.id,
+                'user_name': checkin.user.username,
+                'region_id': checkin.region.id,
+                'region_name': checkin.region.name,
+                'district': checkin.region.district,
+                'area_name': checkin.area_name,
+                'latitude': checkin.latitude,
+                'longitude': checkin.longitude,
+                'last_marked_at': checkin.last_marked_at,
             })
         
         # Overall stats
-        total_safe = User.objects.filter(is_safe=True, role='COMMUNITY').count()
+        total_safe = active_safe.count()
         total_users_all = User.objects.filter(role='COMMUNITY').count()
         
         return Response({
             'regions': safety_data,
             'total_safe': total_safe,
             'total_users': total_users_all,
-            'overall_percentage': round((total_safe / total_users_all * 100) if total_users_all > 0 else 0, 1)
+            'overall_percentage': round((total_safe / total_users_all * 100) if total_users_all > 0 else 0, 1),
+            'recent_checkins': recent_checkins,
+            'active_window_minutes': 30,
         })
 
 

@@ -29,6 +29,7 @@ class _WeatherRiskWidgetState extends State<WeatherRiskWidget> with SingleTicker
   Map<String, dynamic>? _nearestRegion;
   Map<String, dynamic>? _weatherData;
   String? _locationName; // Added for reverse geocoding
+  String? _safetyMessage;
   double? _riskScore;
   String? _riskLevel;
   DateTime? _lastUpdated;
@@ -133,6 +134,7 @@ class _WeatherRiskWidgetState extends State<WeatherRiskWidget> with SingleTicker
           _nearestRegion = nearest;
           _weatherData = weather;
           _locationName = locationName; // Update location name
+          _safetyMessage = riskData['safety_message'] as String?;
           _riskScore = (riskData['risk_score'] as num).toDouble();
           _riskLevel = _getRiskLevel(_riskScore!);
           _lastUpdated = DateTime.now();
@@ -545,6 +547,43 @@ class _WeatherRiskWidgetState extends State<WeatherRiskWidget> with SingleTicker
                           ),
                         ],
                       ),
+                      if (_safetyMessage != null && _safetyMessage!.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.16),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.16),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2),
+                                child: Icon(LucideIcons.info, color: Colors.white, size: 15),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _safetyMessage!,
+                                  maxLines: compact ? 3 : 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.92),
+                                    fontSize: compact ? 12 : 13,
+                                    height: 1.25,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

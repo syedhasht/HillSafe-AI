@@ -1,9 +1,11 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/providers/language_provider.dart';
 import 'package:frontend_app/services/api_service.dart';
@@ -24,11 +26,19 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
   bool _isMarkingSafe = false;
   List<Map<String, dynamic>> _regions = [];
   int? _nearestRegionId;
+  DateTime? _nextSafeMarkAt;
+  Timer? _safeUnlockTimer;
 
   @override
   void initState() {
     super.initState();
     _loadInitialData();
+  }
+
+  @override
+  void dispose() {
+    _safeUnlockTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadInitialData() async {
@@ -56,19 +66,19 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
           final regionId = (nearest['id'] as num).toInt();
           setState(() => _nearestRegionId = regionId);
           
-          // Step 2: Check backend for safety status
-          final isSafe = await _apiService.checkSafetyStatus(regionId);
+          // Step 2: Check backend for active 30-minute safety status
+          final safetyStatus = await _apiService.checkSafetyStatusDetails(regionId);
           if (mounted) {
-            setState(() => _isMarkedSafe = isSafe);
+            _applySafetyStatus(safetyStatus);
           }
         }
       } else if (_regions.isNotEmpty) {
         // Fallback to first region if GPS fails
         final regionId = (_regions.first['id'] as num).toInt();
         setState(() => _nearestRegionId = regionId);
-        final isSafe = await _apiService.checkSafetyStatus(regionId);
+        final safetyStatus = await _apiService.checkSafetyStatusDetails(regionId);
         if (mounted) {
-          setState(() => _isMarkedSafe = isSafe);
+          _applySafetyStatus(safetyStatus);
         }
       }
     } catch (e) {
@@ -93,8 +103,58 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
   }
 
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    // Basic Haversine formula (simplified)
-    return (lat1 - lat2).abs() + (lon1 - lon2).abs();
+    const radiusKm = 6371.0;
+    final dLat = _degreesToRadians(lat2 - lat1);
+    final dLon = _degreesToRadians(lon2 - lon1);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degreesToRadians(lat1)) *
+            math.cos(_degreesToRadians(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    return radiusKm * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  }
+
+  double _degreesToRadians(double degrees) => degrees * math.pi / 180;
+
+  void _applySafetyStatus(Map<String, dynamic> data) {
+    final seconds = (data['seconds_until_next_mark'] as num?)?.toInt() ?? 0;
+    final isActive = data['is_active'] == true;
+
+    setState(() {
+      _isMarkedSafe = isActive && seconds > 0;
+      _nextSafeMarkAt = _isMarkedSafe ? DateTime.now().add(Duration(seconds: seconds)) : null;
+    });
+    _scheduleSafeUnlock();
+  }
+
+  void _scheduleSafeUnlock() {
+    _safeUnlockTimer?.cancel();
+    if (_nextSafeMarkAt == null) return;
+
+    final remaining = _nextSafeMarkAt!.difference(DateTime.now());
+    if (remaining <= Duration.zero) {
+      setState(() {
+        _isMarkedSafe = false;
+        _nextSafeMarkAt = null;
+      });
+      return;
+    }
+
+    _safeUnlockTimer = Timer(remaining, () {
+      if (!mounted) return;
+      setState(() {
+        _isMarkedSafe = false;
+        _nextSafeMarkAt = null;
+      });
+    });
+  }
+
+  String _formatSafeCooldown() {
+    if (_nextSafeMarkAt == null) return 'Notify authorities that you are safe';
+    final remaining = _nextSafeMarkAt!.difference(DateTime.now());
+    if (remaining <= Duration.zero) return 'You can mark yourself safe again now';
+    final minutes = remaining.inMinutes + (remaining.inSeconds % 60 == 0 ? 0 : 1);
+    return 'Authorities notified. You can update again in ${minutes}m';
   }
 
   bool _isRefreshing = false;
@@ -163,16 +223,33 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
         throw Exception('No monitored regions available. Please refresh.');
       }
 
+      final position = await _apiService.getCurrentPosition();
+      final areaName = position == null
+          ? null
+          : await _apiService.fetchLocationName(position.latitude, position.longitude);
+
       print('DEBUG: Calling apiService.markAsSafe for region: $regionId');
-      final success = await _apiService.markAsSafe(regionId);
+      final response = await _apiService.markAsSafe(
+        regionId,
+        latitude: position?.latitude,
+        longitude: position?.longitude,
+        areaName: areaName,
+      );
+      final success = response?['status'] == 'success';
+      final cooldown = response?['status'] == 'cooldown';
 
       if (mounted) {
         setState(() {
           _isMarkingSafe = false;
-          if (success) {
+          if (success || cooldown) {
             _isMarkedSafe = true;
+            final seconds = (response?['seconds_until_next_mark'] as num?)?.toInt() ?? 1800;
+            _nextSafeMarkAt = DateTime.now().add(Duration(seconds: seconds));
           }
         });
+        if (success || cooldown) {
+          _scheduleSafeUnlock();
+        }
 
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -182,10 +259,18 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
               duration: Duration(seconds: 2),
             ),
           );
+        } else if (cooldown) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_formatSafeCooldown()),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to update safety status. Region may be invalid or unauthorized.'),
+              content: Text('Failed to update safety status. Please check login and location permission.'),
               backgroundColor: Colors.red,
             ),
           );
@@ -335,6 +420,7 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                   child: _SafetyButton(
                     isMarkedSafe: _isMarkedSafe,
                     isLoading: _isMarkingSafe,
+                    subtitle: _formatSafeCooldown(),
                     onPressed: _markAsSafe,
                   ),
                 ).animate().fadeIn(duration: 600.ms, delay: 100.ms).slideY(begin: 0.1, end: 0),
@@ -860,11 +946,13 @@ class _QuickActionButton extends StatelessWidget {
 class _SafetyButton extends StatelessWidget {
   final bool isMarkedSafe;
   final bool isLoading;
+  final String subtitle;
   final VoidCallback onPressed;
 
   const _SafetyButton({
     required this.isMarkedSafe,
     required this.isLoading,
+    required this.subtitle,
     required this.onPressed,
   });
 
@@ -915,29 +1003,32 @@ class _SafetyButton extends StatelessWidget {
                 color: isMarkedSafe ? Colors.white : Colors.grey.shade400,
               ),
             const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  isMarkedSafe ? 'STATUS: SAFE' : 'I am Safe',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: isMarkedSafe ? Colors.white : Colors.grey.shade700,
-                    letterSpacing: isMarkedSafe ? 1.2 : 0,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    isMarkedSafe ? 'STATUS: SAFE' : 'I am Safe',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: isMarkedSafe ? Colors.white : Colors.grey.shade700,
+                      letterSpacing: isMarkedSafe ? 1.2 : 0,
+                    ),
                   ),
-                ),
-                Text(
-                  isMarkedSafe 
-                    ? 'Successfully notified authorities' 
-                    : 'Notify authorities that you are safe',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: isMarkedSafe ? Colors.white.withOpacity(0.8) : Colors.grey.shade500,
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isMarkedSafe ? Colors.white.withOpacity(0.8) : Colors.grey.shade500,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const Spacer(),
             if (!isMarkedSafe && !isLoading)
               Icon(LucideIcons.chevronRight, size: 20, color: Colors.grey.shade400),
           ],

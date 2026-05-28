@@ -26,8 +26,58 @@ class SafetyStatusSerializer(serializers.ModelSerializer):
     """
     user_name = serializers.CharField(source='user.username', read_only=True)
     region_name = serializers.CharField(source='region.name', read_only=True)
+    region_district = serializers.CharField(source='region.district', read_only=True)
+    can_mark_again = serializers.SerializerMethodField()
+    next_allowed_at = serializers.SerializerMethodField()
+    seconds_until_next_mark = serializers.SerializerMethodField()
+
+    COOLDOWN_MINUTES = 30
     
     class Meta:
         model = SafetyStatus
-        fields = ['id', 'user', 'user_name', 'region', 'region_name', 'is_safe', 'last_marked_at']
-        read_only_fields = ['id', 'user', 'last_marked_at', 'user_name', 'region_name']
+        fields = [
+            'id',
+            'user',
+            'user_name',
+            'region',
+            'region_name',
+            'region_district',
+            'is_safe',
+            'latitude',
+            'longitude',
+            'area_name',
+            'last_marked_at',
+            'can_mark_again',
+            'next_allowed_at',
+            'seconds_until_next_mark',
+        ]
+        read_only_fields = [
+            'id',
+            'user',
+            'last_marked_at',
+            'user_name',
+            'region_name',
+            'region_district',
+            'can_mark_again',
+            'next_allowed_at',
+            'seconds_until_next_mark',
+        ]
+
+    def _next_allowed_at(self, obj):
+        from datetime import timedelta
+
+        return obj.last_marked_at + timedelta(minutes=self.COOLDOWN_MINUTES)
+
+    def get_next_allowed_at(self, obj):
+        return self._next_allowed_at(obj)
+
+    def get_can_mark_again(self, obj):
+        from django.utils import timezone
+
+        return timezone.now() >= self._next_allowed_at(obj)
+
+    def get_seconds_until_next_mark(self, obj):
+        from django.utils import timezone
+
+        remaining = self._next_allowed_at(obj) - timezone.now()
+        return max(0, int(remaining.total_seconds()))

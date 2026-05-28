@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/services/api_service.dart';
@@ -105,6 +106,20 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                     .fadeIn(duration: 600.ms)
                     .slideY(begin: 0.1, end: 0),
               ),
+            ),
+
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLarge),
+                child: _buildRecentSafetyCheckins()
+                    .animate()
+                    .fadeIn(duration: 600.ms, delay: 100.ms)
+                    .slideY(begin: 0.1, end: 0),
+              ),
+            ),
+
+            const SliverToBoxAdapter(
+              child: SizedBox(height: AppTheme.spacingLarge),
             ),
 
             // Main Menu Grid
@@ -238,6 +253,89 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
               ],
             );
           },
+        );
+      },
+    );
+  }
+
+  Widget _buildRecentSafetyCheckins() {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _apiService.fetchSafetyStatus(),
+      builder: (context, snapshot) {
+        final checkins = (snapshot.data?['recent_checkins'] as List<dynamic>? ?? [])
+            .cast<Map<String, dynamic>>();
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+            boxShadow: AppTheme.cardShadow,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(LucideIcons.shieldCheck, color: Colors.green, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Recent Safety Check-ins',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (snapshot.connectionState == ConnectionState.waiting)
+                const LinearProgressIndicator(minHeight: 2)
+              else if (checkins.isEmpty)
+                Text(
+                  'No active safety check-ins in the last 30 minutes.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                )
+              else
+                ...checkins.take(3).map((checkin) {
+                  final lat = (checkin['latitude'] as num?)?.toDouble();
+                  final lon = (checkin['longitude'] as num?)?.toDouble();
+                  final timestamp = DateTime.tryParse('${checkin['last_marked_at']}');
+                  final timeLabel = timestamp == null
+                      ? 'Unknown time'
+                      : DateFormat('MMM d, h:mm a').format(timestamp.toLocal());
+                  final area = (checkin['area_name'] as String?)?.trim();
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${checkin['user_name'] ?? 'Resident'} marked safe',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          [
+                            if (area != null && area.isNotEmpty) area,
+                            checkin['region_name'] ?? 'Unknown region',
+                            if (lat != null && lon != null)
+                              '${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}',
+                            timeLabel,
+                          ].join(' • '),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
         );
       },
     );

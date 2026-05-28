@@ -47,15 +47,18 @@ class SafetyStatusAdmin(admin.ModelAdmin):
     """
     Admin interface for safety statuses.
     """
-    list_display = ['id', 'user', 'region', 'is_safe', 'last_marked_at']
+    list_display = ['id', 'user', 'region', 'area_name', 'latitude', 'longitude', 'is_safe', 'last_marked_at']
     list_filter = ['is_safe', 'region', 'last_marked_at']
-    search_fields = ['user__username', 'region__name']
+    search_fields = ['user__username', 'region__name', 'area_name']
     readonly_fields = ['last_marked_at']
     date_hierarchy = 'last_marked_at'
     
     fieldsets = (
         ('User Information', {
             'fields': ('user', 'region')
+        }),
+        ('Location', {
+            'fields': ('area_name', 'latitude', 'longitude')
         }),
         ('Status', {
             'fields': ('is_safe', 'last_marked_at')

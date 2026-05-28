@@ -6,8 +6,18 @@ from .models import Region, TerrainSample
 class RegionAdmin(admin.ModelAdmin):
     """Admin interface for Region model."""
     
-    list_display = ['name', 'district', 'latitude', 'longitude', 'current_risk_score', 'updated_at']
-    list_filter = ['district']
+    list_display = [
+        'name',
+        'district',
+        'latitude',
+        'longitude',
+        'current_risk_score',
+        'is_critical_zone',
+        'danger_radius_km',
+        'warning_radius_km',
+        'updated_at',
+    ]
+    list_filter = ['district', 'is_critical_zone']
     search_fields = ['name', 'district']
     ordering = ['-current_risk_score', 'name']
     
@@ -16,7 +26,7 @@ class RegionAdmin(admin.ModelAdmin):
             'fields': ('name', 'district', 'latitude', 'longitude'),
         }),
         ('Risk Assessment', {
-            'fields': ('current_risk_score',),
+            'fields': ('current_risk_score', 'is_critical_zone', 'danger_radius_km', 'warning_radius_km'),
         }),
     )
     

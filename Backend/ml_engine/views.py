@@ -12,6 +12,7 @@ import os
 import requests
 from regions.models import Region, TerrainSample
 from .predictor import HillSafePredictor
+from .safety_messages import get_safety_message
 
 
 def _risk_level(score):
@@ -53,6 +54,16 @@ def _find_nearest_region(latitude, longitude):
             nearest_distance = distance
 
     return nearest, nearest_distance
+
+
+def _zone_status(region, distance_km):
+    if not region.is_critical_zone:
+        return 'outside_monitored_hazard_zone'
+    if distance_km <= region.danger_radius_km:
+        return 'inside_hazard_zone'
+    if distance_km <= region.warning_radius_km:
+        return 'near_hazard_zone'
+    return 'outside_monitored_hazard_zone'
 
 
 def _fetch_openweather_weather(latitude, longitude):
@@ -428,6 +439,7 @@ class PredictLocationRiskView(APIView):
                 {'error': 'No regions available for nearest-location lookup'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        zone_status = _zone_status(nearest_region, distance_km)
 
         try:
             weather = _fetch_openweather_weather(latitude, longitude)
@@ -439,6 +451,38 @@ class PredictLocationRiskView(APIView):
                 'source': 'weather_fallback',
                 'error': str(exc),
             }
+
+        if zone_status == 'outside_monitored_hazard_zone':
+            return Response(
+                {
+                    'risk_score': 0.0,
+                    'risk_level': 'NO RISK',
+                    'is_safe': True,
+                    'safety_message': get_safety_message('NO RISK', zone_status),
+                    'model_status': 'ready',
+                    'source': 'hazard_zone_gate',
+                    'zone_status': zone_status,
+                    'nearest_region': {
+                        'id': nearest_region.id,
+                        'name': nearest_region.name,
+                        'district': nearest_region.district,
+                        'latitude': nearest_region.latitude,
+                        'longitude': nearest_region.longitude,
+                        'distance_km': round(distance_km, 2),
+                        'danger_radius_km': nearest_region.danger_radius_km,
+                        'warning_radius_km': nearest_region.warning_radius_km,
+                        'current_risk_score': nearest_region.current_risk_score,
+                        'current_temperature': weather['temperature'],
+                        'current_rainfall': weather['rainfall_mm'],
+                        'current_humidity': weather['humidity'],
+                    },
+                    'weather': weather,
+                    'terrain': None,
+                    'input_features': None,
+                    'adjustment_reason': 'User is outside monitored landslide hazard zones.',
+                },
+                status=status.HTTP_200_OK
+            )
 
         terrain_defaults = _terrain_defaults_from_region(nearest_region)
         terrain_sample, terrain_source = _get_or_create_terrain_sample(latitude, longitude)
@@ -482,8 +526,10 @@ class PredictLocationRiskView(APIView):
                 'risk_score': round(risk_score, 3),
                 'risk_level': risk_level,
                 'is_safe': is_safe,
+                'safety_message': get_safety_message(risk_level, zone_status),
                 'model_status': 'ready',
                 'source': 'ml_model',
+                'zone_status': zone_status,
                 'nearest_region': {
                     'id': nearest_region.id,
                     'name': nearest_region.name,
@@ -491,6 +537,8 @@ class PredictLocationRiskView(APIView):
                     'latitude': nearest_region.latitude,
                     'longitude': nearest_region.longitude,
                     'distance_km': round(distance_km, 2),
+                    'danger_radius_km': nearest_region.danger_radius_km,
+                    'warning_radius_km': nearest_region.warning_radius_km,
                     'current_risk_score': nearest_region.current_risk_score,
                     'current_temperature': weather['temperature'],
                     'current_rainfall': weather['rainfall_mm'],

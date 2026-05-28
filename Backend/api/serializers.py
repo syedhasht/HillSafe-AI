@@ -24,7 +24,18 @@ class RegionSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Region
-        fields = ['id', 'name', 'district', 'latitude', 'longitude', 'current_risk_score', 'last_updated']
+        fields = [
+            'id',
+            'name',
+            'district',
+            'latitude',
+            'longitude',
+            'current_risk_score',
+            'is_critical_zone',
+            'danger_radius_km',
+            'warning_radius_km',
+            'last_updated',
+        ]
         read_only_fields = ['id', 'last_updated']
 
 

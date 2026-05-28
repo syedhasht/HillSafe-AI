@@ -468,10 +468,16 @@ class ApiService {
   /// 
   /// Returns true if user is marked as safe, false otherwise
   Future<bool> checkSafetyStatus(int regionId) async {
+    final data = await checkSafetyStatusDetails(regionId);
+    return data['is_active'] == true;
+  }
+
+  /// Returns full safety check-in state, including cooldown timing.
+  Future<Map<String, dynamic>> checkSafetyStatusDetails(int regionId) async {
     try {
       final token = await getToken();
       
-      if (token == null) return false;
+      if (token == null) return {};
 
       final response = await http.get(
         Uri.parse('$baseUrl/reports/mark-safe/?region_id=$regionId'),
@@ -484,13 +490,12 @@ class ApiService {
       print('Check safety status response: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['is_safe'] == true;
+        return jsonDecode(response.body) as Map<String, dynamic>;
       }
-      return false;
+      return {};
     } catch (e) {
       print('Check safety status exception: $e');
-      return false;
+      return {};
     }
   }
 
@@ -499,13 +504,18 @@ class ApiService {
   /// Marks the current user as safe in a specific region
   /// 
   /// Returns true if successful, false otherwise
-  Future<bool> markAsSafe(int regionId) async {
+  Future<Map<String, dynamic>?> markAsSafe(
+    int regionId, {
+    double? latitude,
+    double? longitude,
+    String? areaName,
+  }) async {
     try {
       final token = await getToken();
       
       if (token == null) {
         print('No authentication token found');
-        return false;
+        return null;
       }
 
       print('Marking safe for region: $regionId');
@@ -518,6 +528,9 @@ class ApiService {
         },
         body: jsonEncode({
           'region_id': regionId,
+          'latitude': latitude,
+          'longitude': longitude,
+          'area_name': areaName,
         }),
       );
 
@@ -525,14 +538,14 @@ class ApiService {
 
       if (response.statusCode == 200) {
         print('Marked as safe successfully');
-        return true;
+        return jsonDecode(response.body) as Map<String, dynamic>;
       } else {
         print('Mark safe error: ${response.statusCode} - ${response.body}');
-        return false;
+        return null;
       }
     } catch (e) {
       print('Mark safe exception: $e');
-      return false;
+      return null;
     }
   }
 

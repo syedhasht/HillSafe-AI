@@ -81,6 +81,7 @@ class MarkSafeView(APIView):
     """
     authentication_classes = [TokenAuthentication]
     permission_classes = [permissions.IsAuthenticated]
+    cooldown = timedelta(minutes=30)
     
     def get(self, request):
         region_id = request.query_params.get('region_id')
@@ -98,15 +99,29 @@ class MarkSafeView(APIView):
                 region_id=region_id
             )
             serializer = SafetyStatusSerializer(safety_status)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            data = serializer.data
+            data['is_active'] = (
+                safety_status.is_safe
+                and timezone.now() < safety_status.last_marked_at + self.cooldown
+            )
+            return Response(data, status=status.HTTP_200_OK)
         except SafetyStatus.DoesNotExist:
             return Response(
-                {'is_safe': False, 'message': 'No safety status found for this user in this region'},
+                {
+                    'is_safe': False,
+                    'is_active': False,
+                    'can_mark_again': True,
+                    'seconds_until_next_mark': 0,
+                    'message': 'No safety status found for this user in this region',
+                },
                 status=status.HTTP_200_OK
             )
 
     def post(self, request):
         region_id = request.data.get('region_id')
+        latitude = request.data.get('latitude')
+        longitude = request.data.get('longitude')
+        area_name = request.data.get('area_name') or ''
         print(f"DEBUG: POST mark-safe - user: {request.user.username}, region: {region_id}")
         
         if not region_id:
@@ -123,12 +138,47 @@ class MarkSafeView(APIView):
                 {'error': 'Region not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+        existing_status = SafetyStatus.objects.filter(
+            user=request.user,
+            region=region,
+        ).first()
+        if existing_status:
+            next_allowed_at = existing_status.last_marked_at + self.cooldown
+            seconds_until_next_mark = max(0, int((next_allowed_at - timezone.now()).total_seconds()))
+            if existing_status.is_safe and seconds_until_next_mark > 0:
+                serializer = SafetyStatusSerializer(existing_status)
+                return Response(
+                    {
+                        'status': 'cooldown',
+                        'message': 'Safety status already recorded. You can mark yourself again after 30 minutes.',
+                        'can_mark_again': False,
+                        'seconds_until_next_mark': seconds_until_next_mark,
+                        'next_allowed_at': next_allowed_at,
+                        'safety_status': serializer.data,
+                    },
+                    status=status.HTTP_200_OK
+                )
+
+        try:
+            latitude = float(latitude) if latitude is not None else None
+            longitude = float(longitude) if longitude is not None else None
+        except (ValueError, TypeError):
+            return Response(
+                {'error': 'latitude and longitude must be valid numbers when provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         # Create or update safety status (unique constraint ensures one per user per region)
         safety_status, created = SafetyStatus.objects.update_or_create(
             user=request.user,
             region=region,
-            defaults={'is_safe': True}
+            defaults={
+                'is_safe': True,
+                'latitude': latitude,
+                'longitude': longitude,
+                'area_name': str(area_name)[:255],
+            }
         )
         
         serializer = SafetyStatusSerializer(safety_status)
@@ -140,6 +190,8 @@ class MarkSafeView(APIView):
             {
                 'status': 'success',
                 'message': f'Safety status {action} successfully',
+                'can_mark_again': False,
+                'seconds_until_next_mark': int(self.cooldown.total_seconds()),
                 'safety_status': serializer.data
             },
             status=status.HTTP_200_OK

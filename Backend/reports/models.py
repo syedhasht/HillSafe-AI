@@ -77,6 +77,24 @@ class SafetyStatus(models.Model):
         default=True,
         help_text="Whether user has marked themselves as safe"
     )
+
+    latitude = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Latitude where the user marked themselves safe"
+    )
+
+    longitude = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Longitude where the user marked themselves safe"
+    )
+
+    area_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Human-readable area name for the check-in location"
+    )
     
     last_marked_at = models.DateTimeField(
         auto_now=True,

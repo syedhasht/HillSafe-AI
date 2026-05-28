@@ -29,6 +29,21 @@ class Region(models.Model):
         default=0.0,
         help_text="Current landslide risk score (0.0 to 1.0)"
     )
+
+    is_critical_zone = models.BooleanField(
+        default=True,
+        help_text="Whether this region represents a monitored landslide hazard zone"
+    )
+
+    danger_radius_km = models.FloatField(
+        default=5.0,
+        help_text="Distance from region center considered inside the hazard zone"
+    )
+
+    warning_radius_km = models.FloatField(
+        default=15.0,
+        help_text="Distance from region center considered near the hazard zone"
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
