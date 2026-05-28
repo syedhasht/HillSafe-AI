@@ -4,5 +4,23 @@ cd Backend
 python manage.py runserver
 
 
+Django Admin:
+https://hillsafe-ai.onrender.com/admin/
+username: admin
+password: admin123
+
 
 For Frontend:
+cd "Frontend App"
+
+# 1. Check if your phone is connected and detected by ADB
+flutter devices
+
+# 2. Run the app directly on your connected phone (Debug mode, supports Hot Reload)
+flutter run -d "Device name"
+
+# 3. Build a release APK (to share with others or install permanently)
+flutter build apk
+
+# 4. Install the built APK to your connected phone
+flutter install

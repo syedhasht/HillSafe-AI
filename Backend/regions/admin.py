@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Region
+from .models import Region, TerrainSample
 
 
 @admin.register(Region)
@@ -20,4 +20,22 @@ class RegionAdmin(admin.ModelAdmin):
         }),
     )
     
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(TerrainSample)
+class TerrainSampleAdmin(admin.ModelAdmin):
+    """Admin interface for persisted terrain lookups."""
+
+    list_display = [
+        'latitude_key',
+        'longitude_key',
+        'elevation_m',
+        'slope_degrees',
+        'soil_type',
+        'data_quality',
+        'updated_at',
+    ]
+    list_filter = ['data_quality', 'elevation_source', 'soil_source']
+    search_fields = ['latitude_key', 'longitude_key', 'soil_type']
     readonly_fields = ['created_at', 'updated_at']
