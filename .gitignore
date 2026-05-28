@@ -62,3 +62,9 @@ flutter_application_2/
 
 # Deployment / Production
 Backend/staticfiles/
+
+# Tracked ML model backups
+!Weights/
+!Weights/landslide_rf_model.pkl
+!Weights/weather_scaler.pkl
+!Weights/rainfall_lstm.h5
