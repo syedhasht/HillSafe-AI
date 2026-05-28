@@ -39,6 +39,10 @@ Thumbs.db
 *.pkl
 models/*.h5
 models/*.pkl
+!ml_engine/models/
+!ml_engine/models/landslide_rf_model.pkl
+!ml_engine/models/weather_scaler.pkl
+!ml_engine/models/rainfall_lstm.h5
 
 # Database dumps
 *.sql
