@@ -281,18 +281,18 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/regions/'),
         headers: {'Content-Type': 'application/json'},
-      );
+      ).timeout(const Duration(seconds: 12));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         return data.cast<Map<String, dynamic>>();
       } else {
         print('Fetch regions error: ${response.statusCode} - ${response.body}');
-        return [];
+        throw Exception('Server is not live right now. Please try again in a few minutes.');
       }
     } catch (e) {
       print('Fetch regions exception: $e');
-      return [];
+      throw Exception('Server is not live right now. Please try again in a few minutes.');
     }
   }
 

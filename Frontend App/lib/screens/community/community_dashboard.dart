@@ -41,14 +41,28 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
     super.dispose();
   }
 
-  Future<void> _loadInitialData() async {
+  Future<void> _loadInitialData({bool rethrowErrors = false}) async {
     _regionsFuture = _apiService.fetchRegions();
-    final regions = await _regionsFuture;
-    if (mounted) {
-      setState(() {
-        _regions = regions;
-      });
-      await _initialSafetyCheck();
+    try {
+      final regions = await _regionsFuture;
+      if (mounted) {
+        setState(() {
+          _regions = regions;
+        });
+        await _initialSafetyCheck();
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _regions = [];
+          _nearestRegionId = null;
+          _isMarkedSafe = false;
+          _nextSafeMarkAt = null;
+        });
+      }
+      if (rethrowErrors) {
+        rethrow;
+      }
     }
   }
 
@@ -166,7 +180,7 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
       debugPrint('=== REFRESHING DASHBOARD DATA ===');
       
       // Refresh regions
-      await _loadInitialData();
+      await _loadInitialData(rethrowErrors: true);
       
       debugPrint('✓ Dashboard data refreshed successfully');
       
@@ -575,7 +589,7 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Could not load regions. Please check your connection.',
+                                  'Server is not live right now. Please try again after the backend finishes deploying.',
                                   style: Theme.of(context).textTheme.bodyMedium,
                                   textAlign: TextAlign.center,
                                 ),
