@@ -333,196 +333,216 @@ class _WeatherRiskWidgetState extends State<WeatherRiskWidget> with SingleTicker
     final bgIcon = _getBackgroundIcon(rainfall, temperature);
     final riskBadgeColor = _getRiskBadgeColor(_riskScore!);
 
-    return Container(
-      height: 200,
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.2),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: gradient.colors.first.withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 360;
+        final horizontalPadding = compact ? 16.0 : 24.0;
+
+        return Container(
+          constraints: BoxConstraints(minHeight: compact ? 220 : 200),
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: gradient.colors.first.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            // Large Background Icon (The "Pic" effect)
-            Positioned(
-              right: -20,
-              bottom: -20,
-              child: Icon(
-                bgIcon,
-                size: 180,
-                color: Colors.white.withOpacity(0.15),
-              ),
-            ),
-            
-            // Glassmorphism overlay
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white.withOpacity(0.1),
-                    Colors.transparent,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Stack(
+              children: [
+                Positioned(
+                  right: -20,
+                  bottom: -20,
+                  child: Icon(
+                    bgIcon,
+                    size: compact ? 140 : 180,
+                    color: Colors.white.withOpacity(0.15),
+                  ),
                 ),
-              ),
-            ),
-            
-            // Content
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header: Location & Time
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.1),
+                        Colors.transparent,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.all(horizontalPadding),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              const Icon(LucideIcons.mapPin, color: Colors.white, size: 16),
-                              const SizedBox(width: 4),
-                              Text(
-                                locationName,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 2),
+                                      child: Icon(LucideIcons.mapPin, color: Colors.white, size: 16),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        locationName,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: compact ? 16 : 18,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  DateFormat('EEE, d MMM - h:mm a').format(_lastUpdated ?? DateTime.now()),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.8),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _loadData,
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: RotationTransition(
+                                  turns: _animationController,
+                                  child: const Icon(
+                                    LucideIcons.refreshCw,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
                                 ),
                               ),
-                            ],
-                          ),
-                          Text(
-                            DateFormat('EEE, d MMM • h:mm a').format(_lastUpdated ?? DateTime.now()),
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: 12,
                             ),
                           ),
                         ],
                       ),
-                      
-                      // Refresh Button
-                       Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _loadData,
-                          borderRadius: BorderRadius.circular(20),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
+                      SizedBox(height: compact ? 24 : 36),
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.end,
+                        runSpacing: 16,
+                        spacing: 16,
+                        children: [
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: compact ? constraints.maxWidth : constraints.maxWidth * 0.48,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${temperature.toStringAsFixed(0)}°',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: compact ? 40 : 48,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(_getWeatherIcon(rainfall), color: Colors.white, size: 16),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        rainfall > 0
+                                            ? (temperature <= 4 ? 'Snow' : 'Rain')
+                                            : (_isNight ? 'Clear Night' : 'Sunny'),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: RotationTransition(
-                              turns: _animationController,
-                              child: const Icon(
-                                LucideIcons.refreshCw,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const Spacer(),
-                  
-                  // Weather & Risk Info
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      // Weather Temp
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${temperature.toStringAsFixed(0)}°',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 48,
-                              fontWeight: FontWeight.bold,
-                              height: 1,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(_getWeatherIcon(rainfall), color: Colors.white, size: 16),
-                              const SizedBox(width: 6),
-                              Text(
-                                rainfall > 0 
-                                    ? (temperature <= 4 ? 'Snow' : 'Rain') 
-                                    : (_isNight ? 'Clear Night' : 'Sunny'),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
+                              color: riskBadgeColor,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: riskBadgeColor.withOpacity(0.4),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(LucideIcons.alertTriangle, color: Colors.white, size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _getRiskBadgeText(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: compact ? 12 : 13,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                      
-                      const Spacer(),
-                      
-                      // Risk Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: riskBadgeColor,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: riskBadgeColor.withOpacity(0.4),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(LucideIcons.alertTriangle, color: Colors.white, size: 16),
-                            const SizedBox(width: 6),
-                            Text(
-                              _getRiskBadgeText(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
-

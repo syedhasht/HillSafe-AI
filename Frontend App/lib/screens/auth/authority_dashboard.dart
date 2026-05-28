@@ -109,11 +109,15 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
 
             // Main Menu Grid
             SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLarge),
+              padding: EdgeInsets.symmetric(
+                horizontal: MediaQuery.sizeOf(context).width < 360
+                    ? AppTheme.spacingMedium
+                    : AppTheme.spacingLarge,
+              ),
               sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
-                  childAspectRatio: 1,
+                  childAspectRatio: MediaQuery.sizeOf(context).width < 360 ? 0.92 : 1,
                   crossAxisSpacing: AppTheme.spacingMedium,
                   mainAxisSpacing: AppTheme.spacingMedium,
                 ),
@@ -193,35 +197,47 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
         final totalSafe = safetyData['total_safe'] ?? 0;
         final totalUsers = safetyData['total_users'] ?? 0;
         
-        return Row(
-          children: [
-            Expanded(
-              child: _StatCard(
-                label: 'High Risk',
-                value: '3',
-                icon: LucideIcons.alertTriangle,
-                color: Colors.red,
-              ),
-            ),
-            const SizedBox(width: AppTheme.spacingMedium),
-            Expanded(
-              child: _StatCard(
-                label: 'Active Alerts',
-                value: '5',
-                icon: LucideIcons.bell,
-                color: Colors.orange,
-              ),
-            ),
-            const SizedBox(width: AppTheme.spacingMedium),
-            Expanded(
-              child: _StatCard(
-                label: 'Users Safe',
-                value: '$totalSafe/$totalUsers',
-                icon: LucideIcons.shieldCheck,
-                color: Colors.green,
-              ),
-            ),
-          ],
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 380;
+            final cardWidth = compact
+                ? (constraints.maxWidth - AppTheme.spacingMedium) / 2
+                : (constraints.maxWidth - (AppTheme.spacingMedium * 2)) / 3;
+
+            return Wrap(
+              spacing: AppTheme.spacingMedium,
+              runSpacing: AppTheme.spacingMedium,
+              children: [
+                SizedBox(
+                  width: cardWidth,
+                  child: _StatCard(
+                    label: 'High Risk',
+                    value: '3',
+                    icon: LucideIcons.alertTriangle,
+                    color: Colors.red,
+                  ),
+                ),
+                SizedBox(
+                  width: cardWidth,
+                  child: _StatCard(
+                    label: 'Active Alerts',
+                    value: '5',
+                    icon: LucideIcons.bell,
+                    color: Colors.orange,
+                  ),
+                ),
+                SizedBox(
+                  width: cardWidth,
+                  child: _StatCard(
+                    label: 'Users Safe',
+                    value: '$totalSafe/$totalUsers',
+                    icon: LucideIcons.shieldCheck,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -327,7 +343,7 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -358,8 +374,10 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 36,
+              fontSize: MediaQuery.sizeOf(context).width < 360 ? 28 : 34,
               fontWeight: FontWeight.w700,
               color: color,
               height: 1,

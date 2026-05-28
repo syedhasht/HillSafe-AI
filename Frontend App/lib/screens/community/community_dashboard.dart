@@ -218,43 +218,54 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(AppTheme.spacingLarge),
+                  padding: EdgeInsets.all(
+                    MediaQuery.sizeOf(context).width < 360
+                        ? AppTheme.spacingMedium
+                        : AppTheme.spacingLarge,
+                  ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       // Logo + Title
-                      Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).cardColor,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).cardColor,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              padding: const EdgeInsets.all(4),
+                              child: ClipOval(
+                                child: Image.asset(
+                                  'assets/images/Logo.jpeg',
+                                  fit: BoxFit.contain,
                                 ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.all(4),
-                            child: ClipOval(
-                              child: Image.asset(
-                                'assets/images/Logo.jpeg',
-                                fit: BoxFit.contain,
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            langProvider.appName,
-                            style: Theme.of(context).textTheme.headlineMedium,
-                          ),
-                        ],
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: Text(
+                                langProvider.appName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.headlineMedium,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           // Language Toggle
                           Container(
@@ -345,47 +356,56 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                             ),
                       ),
                       const SizedBox(height: AppTheme.spacingMedium),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _QuickActionButton(
-                              icon: LucideIcons.map,
-                              label: 'Map View',
-                              onTap: () {
-                                Navigator.of(context).pushNamed('/community_map');
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: AppTheme.spacingMedium),
-                          Expanded(
-                            child: _QuickActionButton(
-                              icon: LucideIcons.lightbulb,
-                              label: 'Safety Tips',
-                              onTap: () {
-                                Navigator.of(context).pushNamed('/safety_guidelines');
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: AppTheme.spacingMedium),
-                          Expanded(
-                            child: _QuickActionButton(
-                              icon: LucideIcons.flag,
-                              label: 'Report',
-                              onTap: () {
-                                Navigator.of(context).pushNamed('/report_incident');
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: AppTheme.spacingMedium),
-                          Expanded(
-                            child: _QuickActionButton(
-                              icon: LucideIcons.refreshCw,
-                              label: 'Refresh',
-                              onTap: _refreshData,
-                              isLoading: _isRefreshing,
-                            ),
-                          ),
-                        ],
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final buttonWidth = (constraints.maxWidth - AppTheme.spacingMedium) / 2;
+
+                          return Wrap(
+                            spacing: AppTheme.spacingMedium,
+                            runSpacing: AppTheme.spacingMedium,
+                            children: [
+                              SizedBox(
+                                width: buttonWidth,
+                                child: _QuickActionButton(
+                                  icon: LucideIcons.map,
+                                  label: 'Map View',
+                                  onTap: () {
+                                    Navigator.of(context).pushNamed('/community_map');
+                                  },
+                                ),
+                              ),
+                              SizedBox(
+                                width: buttonWidth,
+                                child: _QuickActionButton(
+                                  icon: LucideIcons.lightbulb,
+                                  label: 'Safety Tips',
+                                  onTap: () {
+                                    Navigator.of(context).pushNamed('/safety_guidelines');
+                                  },
+                                ),
+                              ),
+                              SizedBox(
+                                width: buttonWidth,
+                                child: _QuickActionButton(
+                                  icon: LucideIcons.flag,
+                                  label: 'Report',
+                                  onTap: () {
+                                    Navigator.of(context).pushNamed('/report_incident');
+                                  },
+                                ),
+                              ),
+                              SizedBox(
+                                width: buttonWidth,
+                                child: _QuickActionButton(
+                                  icon: LucideIcons.refreshCw,
+                                  label: 'Refresh',
+                                  onTap: _refreshData,
+                                  isLoading: _isRefreshing,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),
