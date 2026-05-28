@@ -17,7 +17,7 @@ cd "Frontend App"
 flutter devices
 
 # 2. Run the app directly on your connected phone (Debug mode, supports Hot Reload)
-flutter run -d "Device name"
+flutter run -d "R5CW51WKRST"
 
 # 3. Build a release APK (to share with others or install permanently)
 flutter build apk

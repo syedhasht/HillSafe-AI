@@ -16,7 +16,6 @@ os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '2')
 os.environ.setdefault('TF_ENABLE_ONEDNN_OPTS', '0')
 
 import joblib
-import numpy as np
 import pandas as pd
 from django.conf import settings
 
@@ -64,20 +63,9 @@ class HillSafePredictor:
         except Exception as exc:
             print(f"ERROR loading Random Forest model: {exc}")
 
-        try:
-            import tensorflow as tf
-
-            lstm_path = os.path.join(models_dir, 'rainfall_lstm.h5')
-            self.lstm_model = tf.keras.models.load_model(
-                lstm_path,
-                compile=False,
-                safe_mode=False,
-            )
-            print("LSTM model loaded successfully")
-        except FileNotFoundError:
-            print(f"WARNING: rainfall_lstm.h5 not found at {lstm_path}")
-        except Exception as exc:
-            print(f"ERROR loading LSTM model: {exc}")
+        # Keep TensorFlow/LSTM lazy-loaded. Render free instances have limited
+        # memory, and landslide risk predictions only need the Random Forest.
+        print("LSTM model lazy loading enabled")
 
         try:
             scaler_path = os.path.join(models_dir, 'weather_scaler.pkl')
@@ -192,8 +180,25 @@ class HillSafePredictor:
             float: Predicted rainfall value
         """
         if self.lstm_model is None:
-            print("LSTM model not loaded. Cannot predict rainfall trend.")
-            return 0.0
+            try:
+                import numpy as np
+                import tensorflow as tf
+
+                models_dir = os.path.join(settings.BASE_DIR, 'ml_engine', 'models')
+                lstm_path = os.path.join(models_dir, 'rainfall_lstm.h5')
+                self.lstm_model = tf.keras.models.load_model(
+                    lstm_path,
+                    compile=False,
+                    safe_mode=False,
+                )
+            except FileNotFoundError:
+                print(f"WARNING: rainfall_lstm.h5 not found at {lstm_path}")
+                return 0.0
+            except Exception as exc:
+                print(f"ERROR loading LSTM model: {exc}")
+                return 0.0
+        else:
+            import numpy as np
 
         try:
             data_array = np.array(historical_data).reshape(1, -1, 1)
