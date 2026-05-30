@@ -9,6 +9,78 @@ from rest_framework.permissions import IsAuthenticated
 from .models import DeviceToken
 
 
+class ProfileView(APIView):
+    """
+    GET/PATCH current user's profile.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response(
+            {
+                'username': user.username,
+                'phone_number': user.phone_number,
+                'email': user.email or '',
+                'language': user.language,
+                'role': user.role,
+                'user_id': user.id,
+                'user_key': user.phone_number,
+                'dark_mode': user.dark_mode,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def patch(self, request):
+        user = request.user
+        username = (request.data.get('username') or '').strip()
+        email = (request.data.get('email') or '').strip()
+        phone_number = (request.data.get('phone_number') or '').strip()
+        language = (request.data.get('language') or '').strip()
+        dark_mode = request.data.get('dark_mode')
+
+        if username:
+            user.username = username
+
+        user.email = email
+        update_fields = ['username', 'email']
+
+        if phone_number and phone_number != user.phone_number:
+            from .models import User
+            if User.objects.filter(phone_number=phone_number).exclude(id=user.id).exists():
+                return Response(
+                    {'error': 'Phone number already registered by another account.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user.phone_number = phone_number
+            update_fields.append('phone_number')
+
+        if language in dict(user.LANGUAGE_CHOICES):
+            user.language = language
+            update_fields.append('language')
+
+        if dark_mode is not None:
+            user.dark_mode = bool(dark_mode)
+            update_fields.append('dark_mode')
+
+        user.save(update_fields=update_fields)
+
+        return Response(
+            {
+                'username': user.username,
+                'phone_number': user.phone_number,
+                'email': user.email or '',
+                'language': user.language,
+                'role': user.role,
+                'user_id': user.id,
+                'user_key': user.phone_number,
+                'dark_mode': user.dark_mode,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class SaveDeviceTokenView(APIView):
     """
     POST endpoint for saving Firebase Cloud Messaging device tokens.

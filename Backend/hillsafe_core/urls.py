@@ -33,6 +33,7 @@ urlpatterns = [
     path("api/", include("api.urls")),
     path("api/ingest/", include("data_ingestion.urls")),
     path("api/reports/", include("reports.urls")),
+    path("api/safety/", include("safety.urls")),
     path("api/accounts/", include("accounts.urls")),
     path("api/predict/", include("ml_engine.urls")),
 ]

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
+import 'package:frontend_app/providers/language_provider.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/services/api_service.dart';
+import 'package:frontend_app/theme/theme_provider.dart';
 
 /// Report Incident Screen - Connects to Backend
 class ReportIncidentScreen extends StatefulWidget {
@@ -20,15 +23,19 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
   
   String _incidentType = 'Landslide Risk';
   int? _selectedRegionId;
+  double? _latitude;
+  double? _longitude;
   List<Map<String, dynamic>> _regions = [];
   bool _isSubmitting = false;
   bool _isLoadingRegions = true;
+  bool _isLoadingLocation = false;
 
   @override
   void initState() {
     super.initState();
     _checkAuthentication();
     _loadRegions();
+    _loadCurrentLocation();
   }
 
   Future<void> _checkAuthentication() async {
@@ -37,10 +44,10 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
-            children: const [
-              Icon(LucideIcons.alertCircle, color: Colors.white),
-              SizedBox(width: 12),
-              Expanded(child: Text('Please log in to submit reports')),
+            children: [
+              const Icon(LucideIcons.alertCircle, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(child: Text(context.read<LanguageProvider>().tr('Please log in to submit reports'))),
             ],
           ),
           backgroundColor: Colors.orange,
@@ -51,9 +58,36 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       // Navigate to login screen
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
-          Navigator.pushReplacementNamed(context, '/login');
+          Navigator.pushReplacementNamed(context, '/resident_login');
         }
       });
+    }
+  }
+
+  Future<void> _loadCurrentLocation() async {
+    setState(() => _isLoadingLocation = true);
+
+    try {
+      final position = await _apiService.getCurrentPosition();
+      if (position == null) return;
+
+      final locationName = await _apiService.fetchLocationName(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+        if (_locationController.text.trim().isEmpty && locationName != null) {
+          _locationController.text = locationName;
+        }
+      });
+    } catch (e) {
+      debugPrint('Report location load error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingLocation = false);
     }
   }
 
@@ -98,6 +132,9 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         final success = await _apiService.submitIncident(
           fullDescription,
           _selectedRegionId!,
+          latitude: _latitude,
+          longitude: _longitude,
+          areaName: _locationController.text.trim(),
         );
 
         debugPrint('Submit result: $success');
@@ -132,10 +169,10 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Row(
-                  children: const [
-                    Icon(LucideIcons.alertCircle, color: Colors.white),
-                    SizedBox(width: 12),
-                    Expanded(child: Text('Failed to submit report. Please try again.')),
+                  children: [
+                    const Icon(LucideIcons.alertCircle, color: Colors.white),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(context.read<LanguageProvider>().tr('Failed to submit report. Please try again.'))),
                   ],
                 ),
                 backgroundColor: Colors.red,
@@ -177,10 +214,10 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
-            children: const [
-              Icon(LucideIcons.info, color: Colors.white),
-              SizedBox(width: 12),
-              Expanded(child: Text('Please fill in all required fields')),
+            children: [
+              const Icon(LucideIcons.info, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(child: Text(context.read<LanguageProvider>().tr('Please fill in all required fields'))),
             ],
           ),
           backgroundColor: Colors.orange,
@@ -192,14 +229,14 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<ThemeProvider>();
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? Theme.of(context).appBarTheme.backgroundColor
-            : AppTheme.primaryColor,
-        title: const Text('Report Incident'),
-        foregroundColor: Colors.white,
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.textPrimary,
+        title: Text(context.watch<LanguageProvider>().tr('Report Incident')),
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppTheme.spacingLarge),
@@ -208,37 +245,29 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Info Banner
+              // Info Banner — using light teal palette
               Container(
                 padding: const EdgeInsets.all(AppTheme.spacingMedium),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.blue.withOpacity(0.1)
-                      : Colors.blue.shade50,
+                  color: AppTheme.accentTealLight,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.blue.withOpacity(0.3)
-                        : Colors.blue.shade200,
+                    color: AppTheme.accentTeal.withOpacity(0.3),
                   ),
                 ),
                 child: Row(
                   children: [
-                    Icon(
+                    const Icon(
                       LucideIcons.info,
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.blue.shade300
-                          : AppTheme.accentBlue,
+                      color: AppTheme.accentTeal,
                     ),
                     const SizedBox(width: AppTheme.spacingSmall),
                     Expanded(
                       child: Text(
-                        'Your report helps authorities respond quickly to potential hazards.',
+                        context.watch<LanguageProvider>().tr('Your report helps authorities respond quickly to potential hazards.'),
                         style: TextStyle(
                           fontSize: 12,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.blue.shade100
-                              : Colors.blue.shade900,
+                          color: AppTheme.textPrimary,
                         ),
                       ),
                     ),
@@ -293,11 +322,9 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     required String label,
     required IconData icon,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingMedium),
-      decoration: isDark ? AppTheme.bentoCardDark : AppTheme.bentoCardLight,
+      decoration: AppTheme.bentoCardLight,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -306,12 +333,15 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
               Icon(
                 icon,
                 size: 18,
-                color: isDark ? Theme.of(context).colorScheme.primary : AppTheme.primaryColor,
+                color: AppTheme.accentTeal,
               ),
               const SizedBox(width: AppTheme.spacingSmall),
               Text(
-                label,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                context.watch<LanguageProvider>().tr(label),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
               ),
             ],
           ),
@@ -337,9 +367,9 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       child: DropdownButtonFormField<String>(
         value: _incidentType,
         decoration: AppTheme.inputDecoration(context),
-        dropdownColor: Theme.of(context).cardTheme.color,
+        dropdownColor: AppTheme.surface,
         items: types.map((type) {
-          return DropdownMenuItem(value: type, child: Text(type));
+          return DropdownMenuItem(value: type, child: Text(context.read<LanguageProvider>().tr(type)));
         }).toList(),
         onChanged: (value) => setState(() => _incidentType = value!),
       ),
@@ -354,7 +384,10 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         child: const Center(
           child: Padding(
             padding: EdgeInsets.all(8.0),
-            child: CircularProgressIndicator(strokeWidth: 2),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppTheme.accentTeal,
+            ),
           ),
         ),
       );
@@ -364,7 +397,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       return _buildFieldWrapper(
         label: 'Region',
         icon: LucideIcons.map,
-        child: const Text('No regions available'),
+        child: Text(context.read<LanguageProvider>().tr('No regions available')),
       );
     }
 
@@ -374,7 +407,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       child: DropdownButtonFormField<int>(
         value: _selectedRegionId,
         decoration: AppTheme.inputDecoration(context),
-        dropdownColor: Theme.of(context).cardTheme.color,
+        dropdownColor: AppTheme.surface,
         items: _regions.map((region) {
           return DropdownMenuItem(
             value: (region['id'] as num).toInt(),
@@ -382,7 +415,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
           );
         }).toList(),
         onChanged: (value) => setState(() => _selectedRegionId = value!),
-        validator: (value) => value == null ? 'Please select a region' : null,
+        validator: (value) => value == null ? context.read<LanguageProvider>().tr('Please select a region') : null,
       ),
     );
   }
@@ -391,14 +424,31 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     return _buildFieldWrapper(
       label: 'Specific Location',
       icon: LucideIcons.mapPin,
-      child: TextFormField(
-        controller: _locationController,
-        decoration: AppTheme.inputDecoration(context).copyWith(
-          hintText: 'e.g., Near Mall Road, Main Bazaar',
-        ),
+        child: TextFormField(
+          controller: _locationController,
+          decoration: AppTheme.inputDecoration(context).copyWith(
+            hintText: context.read<LanguageProvider>().tr('e.g., Near Mall Road, Main Bazaar'),
+            suffixIcon: _isLoadingLocation
+                ? const Padding(
+                    padding: EdgeInsets.all(14),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppTheme.accentTeal,
+                      ),
+                    ),
+                  )
+                : IconButton(
+                    tooltip: context.read<LanguageProvider>().tr('Use current location'),
+                    icon: const Icon(LucideIcons.locateFixed, color: AppTheme.accentTeal),
+                    onPressed: _loadCurrentLocation,
+                  ),
+          ),
         validator: (value) {
           if (value == null || value.isEmpty) {
-            return 'Please enter the specific location';
+            return context.read<LanguageProvider>().tr('Please enter the specific location');
           }
           return null;
         },
@@ -414,11 +464,11 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         controller: _descriptionController,
         maxLines: 5,
         decoration: AppTheme.inputDecoration(context).copyWith(
-          hintText: 'Describe what you observed in detail...',
+          hintText: context.read<LanguageProvider>().tr('Describe what you observed in detail...'),
         ),
         validator: (value) {
           if (value == null || value.isEmpty) {
-            return 'Please describe the incident';
+            return context.read<LanguageProvider>().tr('Please describe the incident');
           }
           return null;
         },
@@ -429,9 +479,9 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
   Widget _buildSubmitButton() {
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.primaryColor,
+        color: AppTheme.accentTeal,
         borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-        boxShadow: AppTheme.cardShadow,
+        boxShadow: AppTheme.tealShadow,
       ),
       child: ElevatedButton(
         onPressed: (_isSubmitting || _isLoadingRegions) ? null : _submitReport,
@@ -452,12 +502,11 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                   valueColor: AlwaysStoppedAnimation(Colors.white),
                 ),
               )
-            : const Text(
-                'Submit Report',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+            : Text(
+                context.watch<LanguageProvider>().tr('Submit Report'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
               ),
       ),
     );
   }
 }
-

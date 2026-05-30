@@ -1,9 +1,10 @@
 import random
+import requests
 from rest_framework import generics, status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
-from django.contrib.auth import authenticate
+from django.conf import settings
 from django.utils import timezone
 from accounts.models import User
 from regions.models import Region
@@ -12,58 +13,317 @@ from ml_engine.risk_pipeline import predict_region_risk
 from .serializers import UserSerializer, RegionSerializer, AlertSerializer
 
 
+class HillSafeChatbotView(APIView):
+    """
+    POST /api/chatbot/
+    Uses Gemini through the backend so the API key is never exposed in Flutter.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        message = (request.data.get('message') or '').strip()
+        region = (request.data.get('region') or 'Unknown').strip()
+        risk_level = (request.data.get('risk_level') or 'Unknown').strip()
+        rainfall = request.data.get('rainfall', 'Unknown')
+        temperature = request.data.get('temperature', 'Unknown')
+        language = (request.data.get('language') or 'English').strip()
+
+        if not message:
+            return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not settings.GEMINI_API_KEY:
+            return Response({
+                'reply': (
+                    'HillSafe Assistant is not connected to Gemini yet. '
+                    'You can still use the FAQ answers in the app.'
+                )
+            }, status=status.HTTP_200_OK)
+
+        prompt = f"""
+You are HillSafe AI Assistant for a landslide early-warning mobile app in Pakistan.
+
+Answer in {language}. Give a complete answer, but keep it practical and easy for residents.
+Use short paragraphs or bullets when useful.
+Do not use Markdown symbols like **, *, #, or backticks.
+Do not invent live weather or disaster data. Use only the provided context.
+If the user asks why risk is high, explain with rainfall, slope, soil, terrain, and incident-history style factors.
+If risk is high or critical, advise immediate caution and avoiding steep slopes/unstable roads.
+
+Context:
+Region: {region}
+Risk Level: {risk_level}
+Rainfall: {rainfall}
+Temperature: {temperature}
+
+User question:
+{message}
+"""
+
+        url = (
+            'https://generativelanguage.googleapis.com/v1beta/models/'
+            f'gemini-2.5-flash:generateContent?key={settings.GEMINI_API_KEY}'
+        )
+        payload = {
+            'contents': [{'parts': [{'text': prompt}]}],
+            'generationConfig': {'temperature': 0.35, 'maxOutputTokens': 700},
+        }
+
+        try:
+            gemini_response = requests.post(url, json=payload, timeout=12)
+            if gemini_response.status_code != 200:
+                return Response({
+                    'reply': 'Assistant is temporarily unavailable. Please use the safety FAQs for quick guidance.'
+                }, status=status.HTTP_200_OK)
+
+            data = gemini_response.json()
+            parts = (
+                data.get('candidates', [{}])[0]
+                .get('content', {})
+                .get('parts', [])
+            )
+            reply = '\n'.join(
+                part.get('text', '').strip()
+                for part in parts
+                if part.get('text', '').strip()
+            ).strip()
+
+            return Response({'reply': reply or 'No response received. Please try again.'}, status=status.HTTP_200_OK)
+        except Exception:
+            return Response({
+                'reply': 'Assistant is temporarily unavailable. Please use the safety FAQs for quick guidance.'
+            }, status=status.HTTP_200_OK)
+
+
 class CustomLoginView(APIView):
     """
-    Passwordless login endpoint for HillSafe AI.
-    
-    Authenticates users with username and phone number only.
-    No password required for community users.
-    
+    Login endpoint for HillSafe AI.
     POST /api/login/
-    Request body: { "username": "johndoe", "phone_number": "+1234567890" }
-    Response: { "token": "<token>", "role": "COMMUNITY", "username": "johndoe", "user_id": 1 }
+
+    - AUTHORITY role: must already exist in DB (checked by username + password).
+      Returns 401 if user not found or credentials are wrong.
+    - COMMUNITY role: passwordless (username + phone). Creates account if new.
     """
-    
     permission_classes = [permissions.AllowAny]
-    
+
+    def _normalize_phone_number(self, value):
+        digits = ''.join(ch for ch in value if ch.isdigit())
+        if digits.startswith('92'):
+            digits = digits[2:]
+        if digits.startswith('0'):
+            digits = digits[1:]
+        if len(digits) != 10:
+            return value.strip()
+        return f'+92 {digits[:3]}-{digits[3:]}'
+
+    def _available_username(self, username, phone_number):
+        base = username.strip() or phone_number
+        if not User.objects.filter(username=base).exists():
+            return base
+        suffix = ''.join(ch for ch in phone_number if ch.isdigit())[-4:] or 'user'
+        candidate = f'{base}_{suffix}'
+        counter = 2
+        while User.objects.filter(username=candidate).exists():
+            candidate = f'{base}_{suffix}_{counter}'
+            counter += 1
+        return candidate
+
     def post(self, request):
-        username = request.data.get('username')
-        phone_number = request.data.get('phone_number')
-        
-        if not username or not phone_number:
-            return Response(
-                {'error': 'Please provide both username and phone number'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Find user by username and phone number (passwordless auth)
-        try:
-            user = User.objects.get(username=username, phone_number=phone_number)
-            
-            # Get or create token for the user
-            token, created = Token.objects.get_or_create(user=user)
-            
+        username = (request.data.get('username') or '').strip()
+        phone_number = self._normalize_phone_number(
+            (request.data.get('phone_number') or '').strip()
+        )
+        password = (request.data.get('password') or '').strip()
+        requested_role = (request.data.get('role') or 'COMMUNITY').upper()
+
+        if requested_role not in dict(User.ROLE_CHOICES):
+            requested_role = 'COMMUNITY'
+
+        # --- AUTHORITY login: must exist in DB with matching credentials ---
+        if requested_role == 'AUTHORITY':
+            if not username or not password:
+                return Response(
+                    {'error': 'Please provide both username and password'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            user = User.objects.filter(username=username, role='AUTHORITY').first()
+            if user is None:
+                return Response(
+                    {'error': 'No authority account found with this username. Please sign up first.'},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+
+            if not user.check_password(password):
+                return Response(
+                    {'error': 'Incorrect password. Please try again.'},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+
+            user.is_logged_in = True
+            user.last_login = timezone.now()
+            user.save(update_fields=['is_logged_in', 'last_login'])
+            token, _ = Token.objects.get_or_create(user=user)
+
             return Response({
                 'token': token.key,
                 'role': user.role,
                 'username': user.username,
                 'user_id': user.id,
+                'user_key': user.phone_number,
                 'phone_number': user.phone_number,
+                'is_logged_in': user.is_logged_in,
+                'language': user.language,
+                'dark_mode': user.dark_mode,
                 'email': user.email or ''
             }, status=status.HTTP_200_OK)
-            
-        except User.DoesNotExist:
+
+        # --- COMMUNITY login: passwordless (create if new) ---
+        if not username or not phone_number:
             return Response(
-                {'error': 'Invalid credentials. Username or phone number not found.'},
-                status=status.HTTP_401_UNAUTHORIZED
+                {'error': 'Please provide both username and phone number'},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
+        user = User.objects.filter(phone_number=phone_number).first()
+        created = user is None
+
+        if created:
+            if User.objects.filter(username=username).exists():
+                return Response(
+                    {'error': 'This username is already taken. Please choose a different username.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user = User(
+                username=username,
+                phone_number=phone_number,
+                role=requested_role,
+            )
+            user.set_unusable_password()
+        else:
+            if user.username != username:
+                return Response(
+                    {'error': 'This phone number is already registered under a different username.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        user.phone_number = phone_number
+        user.role = requested_role
+        user.is_logged_in = True
+        user.last_login = timezone.now()
+        user.save()
+
+        token, _ = Token.objects.get_or_create(user=user)
+
+        return Response({
+            'token': token.key,
+            'role': user.role,
+            'username': user.username,
+            'user_id': user.id,
+            'user_key': user.phone_number,
+            'phone_number': user.phone_number,
+            'is_logged_in': user.is_logged_in,
+            'language': user.language,
+            'dark_mode': user.dark_mode,
+            'email': user.email or ''
+        }, status=status.HTTP_200_OK)
+
+
+class AuthoritySignupView(APIView):
+    """
+    POST /api/signup/authority/
+    Registers a new AUTHORITY account with username, phone number, and password.
+    Returns 409 if username or phone number already exists.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def _normalize_phone_number(self, value):
+        digits = ''.join(ch for ch in value if ch.isdigit())
+        if digits.startswith('92'):
+            digits = digits[2:]
+        if digits.startswith('0'):
+            digits = digits[1:]
+        if len(digits) != 10:
+            return value.strip()
+        return f'+92 {digits[:3]}-{digits[3:]}'
+
+    def post(self, request):
+        username = (request.data.get('username') or '').strip()
+        phone_number = self._normalize_phone_number(
+            (request.data.get('phone_number') or '').strip()
+        )
+        password = (request.data.get('password') or '').strip()
+        email = (request.data.get('email') or '').strip()
+
+        if not username or not phone_number or not password:
+            return Response(
+                {'error': 'Username, phone number, and password are all required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if len(password) < 6:
+            return Response(
+                {'error': 'Password must be at least 6 characters.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if User.objects.filter(username=username).exists():
+            return Response(
+                {'error': 'This username is already taken. Please choose another.'},
+                status=status.HTTP_409_CONFLICT
+            )
+
+        if User.objects.filter(phone_number=phone_number).exists():
+            return Response(
+                {'error': 'An account with this phone number already exists.'},
+                status=status.HTTP_409_CONFLICT
+            )
+
+        user = User(
+            username=username,
+            phone_number=phone_number,
+            role='AUTHORITY',
+            email=email,
+            is_logged_in=True,
+        )
+        user.set_password(password)
+        user.last_login = timezone.now()
+        user.save()
+
+        token, _ = Token.objects.get_or_create(user=user)
+
+        return Response({
+            'token': token.key,
+            'role': user.role,
+            'username': user.username,
+            'user_id': user.id,
+            'user_key': user.phone_number,
+            'phone_number': user.phone_number,
+            'is_logged_in': user.is_logged_in,
+            'language': user.language,
+            'dark_mode': user.dark_mode,
+            'email': user.email or ''
+        }, status=status.HTTP_201_CREATED)
+
+
+class CustomLogoutView(APIView):
+    """
+    POST /api/logout/
+    Clears the user's active login flag.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        request.user.is_logged_in = False
+        request.user.save(update_fields=['is_logged_in'])
+        return Response({
+            'success': True,
+            'message': 'Logged out successfully',
+            'is_logged_in': request.user.is_logged_in,
+        }, status=status.HTTP_200_OK)
 
 
 class RegionListView(generics.ListAPIView):
     """
-    List all regions.
-    
     GET /api/regions/
     Returns all Region objects with location data and risk scores.
     """
@@ -73,182 +333,233 @@ class RegionListView(generics.ListAPIView):
 
     def get_queryset(self):
         refresh = self.request.query_params.get('refresh', 'true').lower() != 'false'
+        force = self.request.query_params.get('force', 'false').lower() == 'true'
         if refresh:
-            refresh_stale_region_risks()
+            _refresh_stale_region_risks(max_age_minutes=0 if force else 15)
         return Region.objects.all()
 
 
-def refresh_stale_region_risks(max_age_minutes=15, max_regions=3):
+def _refresh_stale_region_risks(max_age_minutes=15, max_regions=3):
     cutoff = timezone.now() - timezone.timedelta(minutes=max_age_minutes)
-    stale_regions = list(
-        Region.objects.filter(last_updated__lt=cutoff).order_by('last_updated')[:max_regions]
+    stale = list(
+        Region.objects.filter(last_updated__lte=cutoff).order_by('last_updated')[:max_regions]
     )
-
-    for region in stale_regions:
+    for region in stale:
         try:
             prediction = predict_region_risk(region)
         except Exception as exc:
             print(f"Region risk refresh failed for {region.name}: {exc}")
             continue
-
         region.current_risk_score = prediction['risk_score']
         region.save(update_fields=['current_risk_score', 'updated_at', 'last_updated'])
 
 
 class AlertListView(generics.ListAPIView):
     """
-    List all active alerts.
-    
     GET /api/alerts/
-    Returns active alerts ordered by timestamp (newest first).
+    Returns all alerts ordered by newest first.
     """
     serializer_class = AlertSerializer
     permission_classes = [permissions.AllowAny]
-    
+
     def get_queryset(self):
-        # Return all alerts for history, ordered by newest first
         return Alert.objects.all().order_by('-timestamp')
+
+
+class CreateAlertView(APIView):
+    """
+    POST /api/alerts/create/
+    Saves a new alert to the database and sends Firebase push notifications
+    to every registered DeviceToken.
+
+    Request body:
+        region_id            (int, required)
+        severity             (str: LOW | MEDIUM | HIGH | CRITICAL)
+        message              (str, required)
+        affected_population  (int, optional, default 0)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from accounts.models import DeviceToken
+
+        region_id = request.data.get('region_id')
+        severity = (request.data.get('severity') or 'HIGH').upper()
+        message = (request.data.get('message') or '').strip()
+        affected_population = request.data.get('affected_population', 0)
+
+        if not region_id:
+            return Response({'error': 'region_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not message:
+            return Response({'error': 'message is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if severity not in {'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'}:
+            severity = 'HIGH'
+
+        try:
+            region = Region.objects.get(id=region_id)
+        except Region.DoesNotExist:
+            return Response({'error': 'Region not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Save to DB
+        alert = Alert.objects.create(
+            region=region,
+            severity=severity,
+            message=message,
+            affected_population=affected_population,
+            is_active=True,
+        )
+
+        # Push notifications — best-effort
+        notifications_sent = 0
+        try:
+            import firebase_admin
+            from firebase_admin import messaging
+
+            if not firebase_admin._apps:
+                import os
+                cred_path = os.path.join(settings.BASE_DIR, 'serviceAccountKey.json')
+                cred = firebase_admin.credentials.Certificate(cred_path)
+                firebase_admin.initialize_app(cred)
+
+            tokens = list(DeviceToken.objects.values_list('token', flat=True))
+            if tokens:
+                label = {
+                    'CRITICAL': '\U0001f534 CRITICAL',
+                    'HIGH': '\U0001f7e0 HIGH',
+                    'MEDIUM': '\U0001f7e1 MEDIUM',
+                    'LOW': '\U0001f7e2 LOW',
+                }.get(severity, severity)
+                title = f'{label} Alert \u2014 {region.name}'
+
+                for i in range(0, len(tokens), 500):
+                    chunk = tokens[i:i + 500]
+                    mc = messaging.MulticastMessage(
+                        tokens=chunk,
+                        notification=messaging.Notification(title=title, body=message[:200]),
+                        data={
+                            'alert_id': str(alert.id),
+                            'severity': severity,
+                            'region_id': str(region.id),
+                            'region_name': region.name,
+                        },
+                        android=messaging.AndroidConfig(priority='high'),
+                        apns=messaging.APNSConfig(
+                            payload=messaging.APNSPayload(aps=messaging.Aps(sound='default'))
+                        ),
+                    )
+                    resp = messaging.send_each_for_multicast(mc)
+                    notifications_sent += resp.success_count
+        except Exception as exc:
+            print(f'[CreateAlertView] Push notification error: {exc}')
+
+        return Response({
+            'success': True,
+            'alert_id': alert.id,
+            'severity': alert.severity,
+            'region': region.name,
+            'notifications_sent': notifications_sent,
+            'message': 'Alert created and broadcast successfully.',
+        }, status=status.HTTP_201_CREATED)
 
 
 class AnalyticsView(APIView):
     """
-    Analytics data endpoint.
-    
     GET /api/analytics/?period=7days&region_id=1
-    
-    Query Parameters:
-    - period: '24hours', '7days', or '30days' (default: '7days')
-    - region_id: Optional region ID to filter analytics
-    
-    Returns:
-    - rainfall_trend: List of rainfall values over the period
-    - risk_trend: List of risk scores over the period
-    - high_risk_count: Number of high-risk regions
-    - avg_rainfall: Average rainfall across the period
-    - total_regions: Total number of regions analyzed
-    - period_days: Number of days in the period
+    Returns risk and rainfall trend analytics.
     """
     permission_classes = [permissions.AllowAny]
-    
+
     def get(self, request):
         period = request.query_params.get('period', '7days')
         region_id = request.query_params.get('region_id', None)
-        
-        # Determine number of days based on period
-        if period == '24hours':
-            days = 1
-        elif period == '7days':
-            days = 7
-        elif period == '30days':
-            days = 30
-        else:
-            days = 7
-        
-        # Query regions
+        days = 1 if period == '24hours' else 30 if period == '30days' else 7
+
         regions = Region.objects.all()
         if region_id:
             try:
                 regions = regions.filter(id=int(region_id))
             except (ValueError, TypeError):
                 pass
-        
-        # Generate analytics data
+
         if regions.exists():
-            # Calculate average risk score across all regions
-            total_risk = sum(r.current_risk_score for r in regions)
-            avg_risk = total_risk / regions.count()
-            
-            # Generate trend data (simulated based on current risk)
-            # In production, this would query historical data
-            rainfall_trend = []
-            risk_trend = []
-            
-            for i in range(days):
-                # Simulate variation in data with random noise for realism
-                noise = random.uniform(0.85, 1.15)  # +/- 15% fluctuation
-                
-                daily_risk = avg_risk * 100 * noise
-                daily_risk = min(100, max(5, daily_risk))
-                
-                rainfall_noise = random.uniform(0.7, 1.3)
-                daily_rainfall = (daily_risk * 0.4) * rainfall_noise 
-                
-                rainfall_trend.append(round(daily_rainfall, 1))
-                risk_trend.append(round(daily_risk, 1))
-            
-            # Count high-risk regions (score >= 0.7)
-            high_risk_count = regions.filter(current_risk_score__gte=0.7).count()
-            
-            # Calculate average rainfall
-            avg_rainfall = sum(rainfall_trend) / len(rainfall_trend) if rainfall_trend else 0
-            
+            avg_risk = sum(r.current_risk_score for r in regions) / regions.count()
+            rainfall_trend, risk_trend = [], []
+            for _ in range(days):
+                noise = random.uniform(0.85, 1.15)
+                dr = min(100, max(5, avg_risk * 100 * noise))
+                rainfall_trend.append(round(dr * 0.4 * random.uniform(0.7, 1.3), 1))
+                risk_trend.append(round(dr, 1))
+            critical_count = regions.filter(current_risk_score__gte=0.7).count()
+            high_count = regions.filter(current_risk_score__gte=0.5, current_risk_score__lt=0.7).count()
+            medium_count = regions.filter(current_risk_score__gte=0.3, current_risk_score__lt=0.5).count()
+            low_count = regions.filter(current_risk_score__lt=0.3).count()
             analytics_data = {
                 'rainfall_trend': rainfall_trend,
                 'risk_trend': risk_trend,
-                'high_risk_count': high_risk_count,
-                'avg_rainfall': round(avg_rainfall, 1),
+                'high_risk_count': critical_count,
+                'critical_count': critical_count,
+                'high_count': high_count,
+                'medium_count': medium_count,
+                'low_count': low_count,
+                'avg_rainfall': round(sum(rainfall_trend) / len(rainfall_trend), 1),
                 'total_regions': regions.count(),
                 'period_days': days,
             }
         else:
-            # No regions found
             analytics_data = {
                 'rainfall_trend': [0] * days,
                 'risk_trend': [0] * days,
                 'high_risk_count': 0,
+                'critical_count': 0,
+                'high_count': 0,
+                'medium_count': 0,
+                'low_count': 0,
                 'avg_rainfall': 0,
                 'total_regions': 0,
                 'period_days': days,
             }
-        
         return Response(analytics_data, status=status.HTTP_200_OK)
 
 
 class SensorDataView(APIView):
     """
     GET /api/sensor-data/
-    Returns aggregated sensor data from all regions.
-    Used by War Room to display live sensor metrics.
+    Returns aggregated sensor data derived from region risk scores.
     """
     permission_classes = [permissions.AllowAny]
-    
+
     def get(self, request):
         regions = Region.objects.all()
-        
         if not regions.exists():
             return Response({
-                'rainfall': '0mm',
-                'soil_moisture': '0%',
-                'avg_risk': '0%',
-                'high_risk_count': 0,
-                'region_count': 0,
+                'rainfall': '0mm', 'soil_moisture': '0%',
+                'avg_risk': '0%', 'high_risk_count': 0, 'region_count': 0,
             })
-        
-        # Aggregate sensor data
-        total_rainfall = 0
-        total_soil_moisture = 0
-        total_risk = 0
-        high_risk_count = 0
-        
+        total_rainfall = total_soil_moisture = total_risk = 0
+        critical_count = high_count = medium_count = low_count = 0
         for region in regions:
-            # Get risk score
-            risk_score = region.current_risk_score or 0
-            total_risk += risk_score
-            if risk_score >= 0.7:
-                high_risk_count += 1
-            
-            # Simulate sensor data based on risk (in production, use actual sensors)
-            # Higher risk = more rainfall and soil moisture
-            total_rainfall += int(risk_score * 15)  # 0-15mm per region
-            total_soil_moisture += int(60 + risk_score * 30)  # 60-90%
-        
+            rs = region.current_risk_score or 0
+            total_risk += rs
+            if rs >= 0.7:
+                critical_count += 1
+            elif rs >= 0.5:
+                high_count += 1
+            elif rs >= 0.3:
+                medium_count += 1
+            else:
+                low_count += 1
+            total_rainfall += int(rs * 15)
+            total_soil_moisture += int(60 + rs * 30)
         count = regions.count()
-        
         return Response({
             'rainfall': f"{int(total_rainfall / count)}mm",
             'soil_moisture': f"{int(total_soil_moisture / count)}%",
             'avg_risk': f"{int(total_risk / count * 100)}%",
-            'high_risk_count': high_risk_count,
+            'high_risk_count': critical_count,
+            'critical_count': critical_count,
+            'high_count': high_count,
+            'medium_count': medium_count,
+            'low_count': low_count,
             'region_count': count,
         })
 
@@ -257,44 +568,36 @@ class DistrictsView(APIView):
     """
     GET /api/districts/
     Returns list of unique districts from regions.
-    Used for dynamic district dropdowns throughout the app.
     """
     permission_classes = [permissions.AllowAny]
-    
+
     def get(self, request):
-        # Get unique districts, excluding None/empty values
         districts = Region.objects.exclude(
             district__isnull=True
         ).exclude(
             district=''
         ).values_list('district', flat=True).distinct().order_by('district')
-        
-        return Response({
-            'districts': list(districts)
-        })
+        return Response({'districts': list(districts)})
 
 
 class SafetyStatusView(APIView):
     """
     GET /api/safety-status/
     Returns count of users who marked themselves safe, grouped by region.
-    Used by Command Center to display safety statistics.
     """
     permission_classes = [permissions.AllowAny]
-    
+
     def get(self, request):
         from accounts.models import User
         from reports.models import SafetyStatus
-        
+
         regions = Region.objects.all()
         safety_data = []
         active_cutoff = timezone.now() - timezone.timedelta(minutes=30)
-        
+
         for region in regions:
             safe_checkins = SafetyStatus.objects.filter(
-                region=region,
-                is_safe=True,
-                last_marked_at__gte=active_cutoff,
+                region=region, is_safe=True, last_marked_at__gte=active_cutoff,
             )
             safe_count = safe_checkins.count()
             total_users = User.objects.filter(role='COMMUNITY').count()
@@ -320,10 +623,7 @@ class SafetyStatusView(APIView):
                 'latest_checkin': latest_data,
             })
 
-        active_safe = SafetyStatus.objects.filter(
-            is_safe=True,
-            last_marked_at__gte=active_cutoff,
-        )
+        active_safe = SafetyStatus.objects.filter(is_safe=True, last_marked_at__gte=active_cutoff)
         recent_checkins = []
         for checkin in active_safe.select_related('user', 'region').order_by('-last_marked_at')[:10]:
             recent_checkins.append({
@@ -337,11 +637,10 @@ class SafetyStatusView(APIView):
                 'longitude': checkin.longitude,
                 'last_marked_at': checkin.last_marked_at,
             })
-        
-        # Overall stats
+
         total_safe = active_safe.count()
         total_users_all = User.objects.filter(role='COMMUNITY').count()
-        
+
         return Response({
             'regions': safety_data,
             'total_safe': total_safe,
@@ -358,34 +657,29 @@ class MarkSafeView(APIView):
     Allows users to mark themselves as safe or unsafe.
     """
     permission_classes = [permissions.AllowAny]
-    
+
     def post(self, request):
         from accounts.models import User
         from django.utils import timezone
-        
+
         user_id = request.data.get('user_id')
         region_id = request.data.get('region_id')
         is_safe = request.data.get('is_safe', True)
-        
+
         if not user_id:
-            return Response({
-                'success': False,
-                'error': 'user_id is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({'success': False, 'error': 'user_id is required'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
         try:
             user = User.objects.get(id=user_id)
             user.is_safe = is_safe
             user.safe_status_updated_at = timezone.now()
-            
             if region_id:
                 try:
                     user.location_region_id = int(region_id)
                 except (ValueError, TypeError):
                     pass
-            
             user.save()
-            
             return Response({
                 'success': True,
                 'message': f'Safety status updated to {"safe" if is_safe else "unsafe"}',
@@ -393,7 +687,5 @@ class MarkSafeView(APIView):
                 'updated_at': user.safe_status_updated_at
             })
         except User.DoesNotExist:
-            return Response({
-                'success': False,
-                'error': 'User not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({'success': False, 'error': 'User not found'},
+                            status=status.HTTP_404_NOT_FOUND)

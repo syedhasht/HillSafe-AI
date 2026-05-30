@@ -4,6 +4,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/services/api_service.dart';
 import 'package:frontend_app/screens/community/risk_map_screen.dart';
+import 'package:frontend_app/theme/theme_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:frontend_app/constants/risk_constants.dart';
 
 /// Regional Summary Screen - District Data List
@@ -63,63 +65,78 @@ class _RegionalSummaryScreenState extends State<RegionalSummaryScreen> {
   }
 
   Map<String, int> _calculateStats() {
-    int highRiskCount = 0;
-    int moderateRiskCount = 0;
-    int lowRiskCount = 0;
+    int criticalCount = 0;
+    int highCount = 0;
+    int mediumCount = 0;
+    int lowCount = 0;
 
     for (var region in _regions) {
       final score = (region['current_risk_score'] as num?)?.toDouble() ?? 0.0;
-      if (score >= RiskConstants.highRiskThreshold) {
-        highRiskCount++;
-      } else if (score >= RiskConstants.moderateRiskThreshold) {
-        moderateRiskCount++;
+      if (score >= RiskConstants.criticalThreshold) {
+        criticalCount++;
+      } else if (score >= RiskConstants.highThreshold) {
+        highCount++;
+      } else if (score >= RiskConstants.mediumThreshold) {
+        mediumCount++;
       } else {
-        lowRiskCount++;
+        lowCount++;
       }
     }
 
     return {
-      'high': highRiskCount,
-      'moderate': moderateRiskCount,
-      'low': lowRiskCount,
+      'critical': criticalCount,
+      'high': highCount,
+      'medium': mediumCount,
+      'low': lowCount,
     };
   }
 
   String _getRiskLevel(double score) {
-    if (score >= RiskConstants.highRiskThreshold) return 'High';
-    if (score >= RiskConstants.moderateRiskThreshold) return 'Moderate';
-    if (score < RiskConstants.noRiskThreshold) return 'No Risk';
+    if (score >= RiskConstants.criticalThreshold) return 'Critical';
+    if (score >= RiskConstants.highThreshold) return 'High';
+    if (score >= RiskConstants.mediumThreshold) return 'Medium';
     return 'Low';
   }
 
   Color _getRiskColor(double score) {
-    if (score >= RiskConstants.highRiskThreshold) return Colors.red;
-    if (score >= RiskConstants.moderateRiskThreshold) return Colors.orange;
+    if (score >= RiskConstants.criticalThreshold) return Colors.red;
+    if (score >= RiskConstants.highThreshold) return Colors.orange;
+    if (score >= RiskConstants.mediumThreshold) return Colors.amber;
     return Colors.green;
   }
 
   @override
   Widget build(BuildContext context) {
+    context.watch<ThemeProvider>();
     return Scaffold(
-      backgroundColor: AppTheme.surfaceGrey,
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
             // App Bar
             SliverAppBar(
               floating: true,
-              backgroundColor: AppTheme.primaryColor,
+              backgroundColor: AppTheme.surface,
+              foregroundColor: AppTheme.textPrimary,
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
               title: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Regional Summary'),
+                  Text(
+                    'Regional Summary',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   if (_lastUpdated != null)
                     Text(
-                      'Updated ${_getLastUpdatedText()}',
-                      style: const TextStyle(
+                       'Updated ${_getLastUpdatedText()}',
+                      style: TextStyle(
                         fontSize: 11,
-                        color: Colors.white70,
+                        color: AppTheme.textSecondary,
                         fontWeight: FontWeight.normal,
                       ),
                     ),
@@ -133,7 +150,7 @@ class _RegionalSummaryScreenState extends State<RegionalSummaryScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: AppTheme.accentTeal,
                           ),
                         )
                       : const Icon(LucideIcons.refreshCw),
@@ -185,11 +202,13 @@ class _RegionalSummaryScreenState extends State<RegionalSummaryScreen> {
 
             // Loading State
             if (_isLoading)
-              const SliverToBoxAdapter(
+              SliverToBoxAdapter(
                 child: Center(
                   child: Padding(
                     padding: EdgeInsets.all(40),
-                    child: CircularProgressIndicator(),
+                    child: CircularProgressIndicator(
+                      color: AppTheme.accentTeal,
+                    ),
                   ),
                 ),
               ),
@@ -252,6 +271,7 @@ class _RegionalSummaryScreenState extends State<RegionalSummaryScreen> {
     
     return Column(
       children: [
+        // Stats card — teal gradient (intentionally dark/accent panel)
         Container(
           padding: const EdgeInsets.all(AppTheme.spacingLarge),
           decoration: AppTheme.gradientCard,
@@ -260,20 +280,26 @@ class _RegionalSummaryScreenState extends State<RegionalSummaryScreen> {
             children: [
               _buildStatItem(
                 context,
-                '${stats['high']}',
-                'High Risk',
+                '${stats['critical']}',
+                'Critical',
                 Colors.red.shade100,
               ),
               _buildStatItem(
                 context,
-                '${stats['moderate']}',
-                'Moderate',
+                '${stats['high']}',
+                'High',
+                Colors.orange.shade100,
+              ),
+              _buildStatItem(
+                context,
+                '${stats['medium']}',
+                'Medium',
                 Colors.amber.shade100,
               ),
               _buildStatItem(
                 context,
                 '${stats['low']}',
-                'Low Risk',
+                'Low',
                 Colors.green.shade100,
               ),
             ],
@@ -290,29 +316,23 @@ class _RegionalSummaryScreenState extends State<RegionalSummaryScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppTheme.surface,
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primaryColor.withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-              border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+              boxShadow: AppTheme.cardShadow,
+              border: Border.all(color: AppTheme.accentTeal.withOpacity(0.2)),
             ),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    color: AppTheme.accentTealLight,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(LucideIcons.map, color: AppTheme.primaryColor, size: 20),
+                  child: const Icon(LucideIcons.map, color: AppTheme.accentTeal, size: 20),
                 ),
                 const SizedBox(width: 16),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -321,6 +341,7 @@ class _RegionalSummaryScreenState extends State<RegionalSummaryScreen> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
+                          color: AppTheme.textPrimary,
                         ),
                       ),
                       Text(
@@ -333,7 +354,7 @@ class _RegionalSummaryScreenState extends State<RegionalSummaryScreen> {
                     ],
                   ),
                 ),
-                const Icon(LucideIcons.chevronRight, color: AppTheme.primaryColor, size: 20),
+                const Icon(LucideIcons.chevronRight, color: AppTheme.accentTeal, size: 20),
               ],
             ),
           ),
@@ -412,12 +433,12 @@ class _RegionalSummaryScreenState extends State<RegionalSummaryScreen> {
                 Container(
                   padding: const EdgeInsets.all(AppTheme.spacingSmall),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    color: AppTheme.accentTealLight,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     LucideIcons.mapPin,
-                    color: AppTheme.primaryColor,
+                    color: AppTheme.accentTeal,
                     size: 24,
                   ),
                 ),
@@ -446,7 +467,7 @@ class _RegionalSummaryScreenState extends State<RegionalSummaryScreen> {
                   ),
                 ),
 
-                // Risk Badge
+                // Risk Badge — teal accent indicator for risk level
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppTheme.spacingSmall,
@@ -544,7 +565,7 @@ class _RegionalSummaryScreenState extends State<RegionalSummaryScreen> {
             // Action Row
             Row(
               children: [
-                Icon(
+                 Icon(
                   LucideIcons.activity,
                   size: 14,
                   color: AppTheme.textSecondary,
@@ -558,16 +579,16 @@ class _RegionalSummaryScreenState extends State<RegionalSummaryScreen> {
                       ),
                 ),
                 const Spacer(),
-                Icon(
+                 Icon(
                   LucideIcons.chevronRight,
                   size: 18,
-                  color: AppTheme.primaryColor,
+                  color: AppTheme.accentTeal,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   'View Details',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.primaryColor,
+                        color: AppTheme.accentTeal,
                         fontWeight: FontWeight.w600,
                         fontSize: 12,
                       ),
@@ -659,4 +680,3 @@ class _SparklinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
-

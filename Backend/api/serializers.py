@@ -12,8 +12,8 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['id', 'username', 'role']
-        read_only_fields = ['id']
+        fields = ['id', 'username', 'role', 'phone_number', 'is_logged_in', 'language']
+        read_only_fields = ['id', 'phone_number']
 
 
 class RegionSerializer(serializers.ModelSerializer):
@@ -51,5 +51,5 @@ class AlertSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Alert
-        fields = ['id', 'severity', 'message', 'timestamp', 'region', 'region_name', 'region_district', 'region_lat', 'region_lng', 'affected_population']
+        fields = ['id', 'severity', 'message', 'timestamp', 'region', 'region_name', 'region_district', 'region_lat', 'region_lng', 'affected_population', 'is_active']
         read_only_fields = ['id', 'timestamp']

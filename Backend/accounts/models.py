@@ -13,6 +13,11 @@ class User(AbstractUser):
         ('COMMUNITY', 'Community User'),
         ('ADMIN', 'System Admin'),
     ]
+
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('ur', 'Urdu'),
+    ]
     
     role = models.CharField(
         max_length=20,
@@ -22,10 +27,26 @@ class User(AbstractUser):
     )
     
     phone_number = models.CharField(
-        max_length=15,
-        blank=True,
-        null=True,
-        help_text="User's contact phone number"
+        max_length=20,
+        unique=True,
+        help_text="User's unique contact phone number"
+    )
+
+    is_logged_in = models.BooleanField(
+        default=False,
+        help_text="Whether the user currently has an active app login"
+    )
+
+    language = models.CharField(
+        max_length=2,
+        choices=LANGUAGE_CHOICES,
+        default='en',
+        help_text="User's preferred app language"
+    )
+
+    dark_mode = models.BooleanField(
+        default=False,
+        help_text="Whether the user has dark mode enabled"
     )
     
     # Safety Status Fields

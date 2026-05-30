@@ -36,16 +36,17 @@ class SafetyController extends ChangeNotifier {
   
   String get riskLevel {
     if (_currentRiskScore == null) return 'UNKNOWN';
-    if (_currentRiskScore! >= 0.7) return 'HIGH';
-    if (_currentRiskScore! >= 0.3) return 'MODERATE';
-    if (_currentRiskScore! < 0.15) return 'NO RISK';
+    if (_currentRiskScore! >= 0.7) return 'CRITICAL';
+    if (_currentRiskScore! >= 0.5) return 'HIGH';
+    if (_currentRiskScore! >= 0.3) return 'MEDIUM';
     return 'LOW';
   }
   
   Color get riskColor {
     if (_currentRiskScore == null) return Colors.grey;
     if (_currentRiskScore! >= 0.7) return Colors.red;
-    if (_currentRiskScore! >= 0.3) return Colors.orange;
+    if (_currentRiskScore! >= 0.5) return Colors.orange;
+    if (_currentRiskScore! >= 0.3) return Colors.amber;
     return Colors.green;
   }
   

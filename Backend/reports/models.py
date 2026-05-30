@@ -26,6 +26,24 @@ class IncidentReport(models.Model):
     description = models.TextField(
         help_text="Detailed description of the incident"
     )
+
+    latitude = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Latitude where the incident was reported"
+    )
+
+    longitude = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Longitude where the incident was reported"
+    )
+
+    area_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Human-readable incident location"
+    )
     
     image = models.ImageField(
         upload_to='incident_images/',
@@ -110,3 +128,55 @@ class SafetyStatus(models.Model):
         verbose_name_plural = "Safety Statuses"
         ordering = ['-last_marked_at']
         unique_together = ['user', 'region']  # One status per user per region
+
+
+class SOSRequest(models.Model):
+    """
+    Emergency SOS request sent by a resident from the mobile app.
+    """
+
+    STATUS_CHOICES = [
+        ('NEEDS_HELP', 'Needs Help'),
+        ('ACKNOWLEDGED', 'Acknowledged'),
+        ('RESOLVED', 'Resolved'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='sos_requests',
+        help_text="User who sent the SOS request"
+    )
+
+    region = models.ForeignKey(
+        Region,
+        on_delete=models.SET_NULL,
+        related_name='sos_requests',
+        null=True,
+        blank=True,
+        help_text="Nearest/current risk area for this SOS request"
+    )
+
+    name = models.CharField(max_length=150)
+    phone_number = models.CharField(max_length=20, blank=True)
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    area_name = models.CharField(max_length=255, blank=True)
+    risk_level = models.CharField(max_length=20, blank=True)
+    risk_score = models.FloatField(null=True, blank=True)
+    message = models.TextField(default='Emergency SOS. User needs immediate help.')
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='NEEDS_HELP',
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        region_name = self.region.name if self.region else self.area_name or 'Unknown area'
+        return f"SOS from {self.name} - {region_name}"
+
+    class Meta:
+        verbose_name = "SOS Request"
+        verbose_name_plural = "SOS Requests"
+        ordering = ['-timestamp']

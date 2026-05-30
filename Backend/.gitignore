@@ -47,3 +47,6 @@ models/*.pkl
 # Database dumps
 *.sql
 *.dump
+
+# Firebase private key — NEVER commit this
+serviceAccountKey.json

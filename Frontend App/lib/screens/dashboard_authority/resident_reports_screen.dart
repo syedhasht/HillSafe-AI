@@ -4,6 +4,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend_app/services/api_service.dart';
 import 'package:frontend_app/theme/app_theme.dart';
+import 'package:frontend_app/theme/theme_provider.dart';
+import 'package:provider/provider.dart';
 
 class ResidentReportsScreen extends StatefulWidget {
   const ResidentReportsScreen({super.key});
@@ -72,23 +74,31 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<ThemeProvider>();
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: const Text('Resident Reports'),
-        backgroundColor: AppTheme.primaryColor,
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.textPrimary,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
       ),
       body: Column(
         children: [
           _buildFilterBar(),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: AppTheme.accentTeal,
+                    ),
+                  )
                 : _reports.isEmpty
                     ? _buildEmptyState()
                     : RefreshIndicator(
                         onRefresh: _refreshReports,
+                        color: AppTheme.accentTeal,
                         child: ListView.builder(
                           padding: const EdgeInsets.all(AppTheme.spacingMedium),
                           itemCount: _reports.length,
@@ -107,20 +117,17 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingMedium),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppTheme.surface,
+        border: Border(
+          bottom: BorderSide(color: AppTheme.borderColor),
+        ),
+        boxShadow: AppTheme.cardShadow,
       ),
       child: Row(
         children: [
-          const Icon(LucideIcons.filter, size: 20, color: AppTheme.textSecondary),
+          Icon(LucideIcons.filter, size: 20, color: AppTheme.textSecondary),
           const SizedBox(width: 12),
-          const Text(
+          Text(
             'Filter by Region:',
             style: TextStyle(
               fontWeight: FontWeight.w600,
@@ -132,9 +139,9 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: Theme.of(context).scaffoldBackgroundColor,
+                color: AppTheme.background,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
+                border: Border.all(color: AppTheme.borderColor),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<int>(
@@ -168,11 +175,19 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
     final timestamp = DateTime.parse(report['timestamp']);
     final formattedDate = DateFormat('MMM d, y • h:mm a').format(timestamp);
     final hasImage = report['image'] != null;
+    final areaName = (report['area_name'] as String?)?.trim();
+    final placeName = areaName != null && areaName.isNotEmpty
+        ? areaName
+        : report['region_name'] ?? 'Unknown';
 
     return Card(
       margin: const EdgeInsets.only(bottom: AppTheme.spacingMedium),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      color: AppTheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppTheme.borderColor),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -184,20 +199,22 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                 Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                      backgroundColor: AppTheme.accentTealLight,
                       radius: 16,
-                      child: const Icon(LucideIcons.user, size: 16, color: AppTheme.primaryColor),
+                      child: Icon(LucideIcons.user, size: 16, color: AppTheme.accentTeal),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       report['user_name'] ?? 'Unknown User',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
+                        color: AppTheme.textPrimary,
                       ),
                     ),
                   ],
                 ),
+                // Region badge — keep orange status color (warning constant)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -223,9 +240,28 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
               ],
             ),
             const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(LucideIcons.mapPinned, size: 14, color: AppTheme.textSecondary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Place: $placeName',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             Text(
               report['description'] ?? '',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 height: 1.4,
                 color: AppTheme.textPrimary,
@@ -256,20 +292,21 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
               ),
             ],
             const SizedBox(height: 12),
-            Divider(height: 1, color: Colors.grey.shade200),
+            Divider(height: 1, color: AppTheme.borderColor),
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(LucideIcons.clock, size: 14, color: AppTheme.textSecondary),
+                Icon(LucideIcons.clock, size: 14, color: AppTheme.textSecondary),
                 const SizedBox(width: 6),
                 Text(
                   formattedDate,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppTheme.textSecondary,
                   ),
                 ),
                 const Spacer(),
+                // Status badges — keep success/warning semantic colors
                 if (report['is_verified'] == true)
                   const Row(
                     children: [
@@ -327,7 +364,7 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Try changing the region filter',
             style: TextStyle(
               fontSize: 14,
@@ -339,4 +376,3 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
     );
   }
 }
-

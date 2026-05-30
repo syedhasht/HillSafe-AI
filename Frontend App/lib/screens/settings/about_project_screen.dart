@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 
 /// About Project Screen
@@ -9,17 +9,16 @@ import 'package:frontend_app/theme/app_theme.dart';
 class AboutProjectScreen extends StatelessWidget {
   const AboutProjectScreen({super.key});
 
+  static const _emailChannel = MethodChannel('com.example.frontend_app/email');
+
   Future<void> _launchEmail() async {
-    final Uri emailUri = Uri(
-      scheme: 'mailto',
-      path: 'hillsafeai@gmail.com',
-      queryParameters: {
+    try {
+      await _emailChannel.invokeMethod('sendEmail', {
+        'to': 'hillsafeai@gmail.com',
         'subject': 'HillSafe AI Support Request',
-      },
-    );
-    
-    if (await canLaunchUrl(emailUri)) {
-      await launchUrl(emailUri);
+      });
+    } catch (e) {
+      // Email app not available, silently fail
     }
   }
 
@@ -81,7 +80,7 @@ class AboutProjectScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingSmall),
-                  const Text(
+                  Text(
                     'Version 1.0.0',
                     style: TextStyle(
                       fontSize: 12,

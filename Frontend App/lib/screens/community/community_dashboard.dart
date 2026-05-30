@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend_app/theme/app_theme.dart';
+import 'package:frontend_app/theme/theme_provider.dart';
 import 'package:frontend_app/providers/language_provider.dart';
 import 'package:frontend_app/services/api_service.dart';
 import 'package:frontend_app/screens/community/risk_map_screen.dart';
@@ -19,15 +20,22 @@ class CommunityDashboard extends StatefulWidget {
   State<CommunityDashboard> createState() => _CommunityDashboardState();
 }
 
-class _CommunityDashboardState extends State<CommunityDashboard> with SingleTickerProviderStateMixin {
+class _CommunityDashboardState extends State<CommunityDashboard>
+    with SingleTickerProviderStateMixin {
   final ApiService _apiService = ApiService();
-  late Future<List<Map<String, dynamic>>> _regionsFuture;
+  static final Set<String> _playedRegionEntryAnimations = <String>{};
   bool _isMarkedSafe = false;
   bool _isMarkingSafe = false;
+  bool _isSendingSOS = false;
+  bool _isRegionsLoading = true;
+  bool _animateRegionCardsOnFirstLoad = true;
+  String? _regionsError;
   List<Map<String, dynamic>> _regions = [];
   int? _nearestRegionId;
   DateTime? _nextSafeMarkAt;
+  DateTime? _nextSOSAllowedAt;
   Timer? _safeUnlockTimer;
+  Timer? _sosUnlockTimer;
 
   @override
   void initState() {
@@ -38,26 +46,47 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
   @override
   void dispose() {
     _safeUnlockTimer?.cancel();
+    _sosUnlockTimer?.cancel();
     super.dispose();
   }
 
   Future<void> _loadInitialData({bool rethrowErrors = false}) async {
-    _regionsFuture = _apiService.fetchRegions();
+    if (mounted) {
+      setState(() {
+        _isRegionsLoading = _regions.isEmpty;
+        _regionsError = null;
+      });
+    }
+
     try {
-      final regions = await _regionsFuture;
+      final shouldAnimateLoadedRegions = _regions.isEmpty;
+      final regions = await _apiService.fetchRegions();
       if (mounted) {
         setState(() {
           _regions = regions;
+          _isRegionsLoading = false;
+          _animateRegionCardsOnFirstLoad = shouldAnimateLoadedRegions;
+          _regionsError = null;
         });
+        if (shouldAnimateLoadedRegions) {
+          Future.delayed(const Duration(milliseconds: 1200), () {
+            if (mounted) {
+              setState(() => _animateRegionCardsOnFirstLoad = false);
+            }
+          });
+        }
         await _initialSafetyCheck();
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
-          _regions = [];
-          _nearestRegionId = null;
-          _isMarkedSafe = false;
-          _nextSafeMarkAt = null;
+          _isRegionsLoading = false;
+          _regionsError = 'Unable to load monitored regions. Please try again.';
+          if (_regions.isEmpty) {
+            _nearestRegionId = null;
+            _isMarkedSafe = false;
+            _nextSafeMarkAt = null;
+          }
         });
       }
       if (rethrowErrors) {
@@ -72,16 +101,18 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
     try {
       // Step 1: Get current position to find nearest region
       final position = await _apiService.getCurrentPosition();
-      
+
       if (position != null) {
         // Find nearest region (simplified logic matching WeatherRiskWidget)
-        final nearest = _findNearestRegion(position.latitude, position.longitude, _regions);
+        final nearest =
+            _findNearestRegion(position.latitude, position.longitude, _regions);
         if (nearest != null && mounted) {
           final regionId = (nearest['id'] as num).toInt();
           setState(() => _nearestRegionId = regionId);
-          
+
           // Step 2: Check backend for active 30-minute safety status
-          final safetyStatus = await _apiService.checkSafetyStatusDetails(regionId);
+          final safetyStatus =
+              await _apiService.checkSafetyStatusDetails(regionId);
           if (mounted) {
             _applySafetyStatus(safetyStatus);
           }
@@ -90,7 +121,8 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
         // Fallback to first region if GPS fails
         final regionId = (_regions.first['id'] as num).toInt();
         setState(() => _nearestRegionId = regionId);
-        final safetyStatus = await _apiService.checkSafetyStatusDetails(regionId);
+        final safetyStatus =
+            await _apiService.checkSafetyStatusDetails(regionId);
         if (mounted) {
           _applySafetyStatus(safetyStatus);
         }
@@ -100,7 +132,8 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
     }
   }
 
-  Map<String, dynamic>? _findNearestRegion(double lat, double lon, List<Map<String, dynamic>> regions) {
+  Map<String, dynamic>? _findNearestRegion(
+      double lat, double lon, List<Map<String, dynamic>> regions) {
     Map<String, dynamic>? nearest;
     double minDistance = double.infinity;
     for (var region in regions) {
@@ -116,7 +149,8 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
     return nearest;
   }
 
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+  double _calculateDistance(
+      double lat1, double lon1, double lat2, double lon2) {
     const radiusKm = 6371.0;
     final dLat = _degreesToRadians(lat2 - lat1);
     final dLon = _degreesToRadians(lon2 - lon1);
@@ -136,7 +170,8 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
 
     setState(() {
       _isMarkedSafe = isActive && seconds > 0;
-      _nextSafeMarkAt = _isMarkedSafe ? DateTime.now().add(Duration(seconds: seconds)) : null;
+      _nextSafeMarkAt =
+          _isMarkedSafe ? DateTime.now().add(Duration(seconds: seconds)) : null;
     });
     _scheduleSafeUnlock();
   }
@@ -166,24 +201,22 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
   String _formatSafeCooldown() {
     if (_nextSafeMarkAt == null) return 'Notify authorities that you are safe';
     final remaining = _nextSafeMarkAt!.difference(DateTime.now());
-    if (remaining <= Duration.zero) return 'You can mark yourself safe again now';
-    final minutes = remaining.inMinutes + (remaining.inSeconds % 60 == 0 ? 0 : 1);
+    if (remaining <= Duration.zero)
+      return 'You can mark yourself safe again now';
+    final minutes =
+        remaining.inMinutes + (remaining.inSeconds % 60 == 0 ? 0 : 1);
     return 'Authorities notified. You can update again in ${minutes}m';
   }
 
-  bool _isRefreshing = false;
-
   Future<void> _refreshData() async {
-    setState(() => _isRefreshing = true);
-    
     try {
       debugPrint('=== REFRESHING DASHBOARD DATA ===');
-      
+
       // Refresh regions
       await _loadInitialData(rethrowErrors: true);
-      
+
       debugPrint('✓ Dashboard data refreshed successfully');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -201,7 +234,7 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
       }
     } catch (e) {
       debugPrint('✗ Refresh failed: $e');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -217,21 +250,19 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isRefreshing = false);
-      }
     }
   }
 
   Future<void> _markAsSafe() async {
     if (_isMarkedSafe) return;
-    
+
     setState(() => _isMarkingSafe = true);
-    print('DEBUG: Starting _markAsSafe. Current nearestRegionId: $_nearestRegionId');
+    print(
+        'DEBUG: Starting _markAsSafe. Current nearestRegionId: $_nearestRegionId');
 
     try {
-      final regionId = _nearestRegionId ?? (_regions.isNotEmpty ? (_regions.first['id'] as num).toInt() : null);
+      final regionId = _nearestRegionId ??
+          (_regions.isNotEmpty ? (_regions.first['id'] as num).toInt() : null);
 
       if (regionId == null) {
         throw Exception('No monitored regions available. Please refresh.');
@@ -240,7 +271,8 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
       final position = await _apiService.getCurrentPosition();
       final areaName = position == null
           ? null
-          : await _apiService.fetchLocationName(position.latitude, position.longitude);
+          : await _apiService.fetchLocationName(
+              position.latitude, position.longitude);
 
       print('DEBUG: Calling apiService.markAsSafe for region: $regionId');
       final response = await _apiService.markAsSafe(
@@ -257,7 +289,8 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
           _isMarkingSafe = false;
           if (success || cooldown) {
             _isMarkedSafe = true;
-            final seconds = (response?['seconds_until_next_mark'] as num?)?.toInt() ?? 1800;
+            final seconds =
+                (response?['seconds_until_next_mark'] as num?)?.toInt() ?? 1800;
             _nextSafeMarkAt = DateTime.now().add(Duration(seconds: seconds));
           }
         });
@@ -284,7 +317,8 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to update safety status. Please check login and location permission.'),
+              content: Text(
+                  'Failed to update safety status. Please check login and location permission.'),
               backgroundColor: Colors.red,
             ),
           );
@@ -304,17 +338,282 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
     }
   }
 
+  Future<void> _sendSOS() async {
+    if (_isSendingSOS) return;
+    if (_isSOSOnCooldown) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_formatSOSCooldown()),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSendingSOS = true);
+
+    try {
+      final position = await _apiService.getCurrentPosition();
+      if (position == null) {
+        throw Exception('Location permission is required to send SOS.');
+      }
+
+      final nearest = _findNearestRegion(
+        position.latitude,
+        position.longitude,
+        _regions,
+      );
+      final regionId = (nearest?['id'] as num?)?.toInt();
+      final areaName = await _apiService.fetchLocationName(
+        position.latitude,
+        position.longitude,
+      );
+
+      final riskData = await _apiService.predictLocationRisk(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+      final riskLevel =
+          riskData?['risk_level']?.toString() ?? _riskLevelFromRegion(nearest);
+      final riskScore = (riskData?['risk_score'] as num?)?.toDouble() ??
+          (nearest?['current_risk_score'] as num?)?.toDouble();
+
+      final response = await _apiService.submitSOS(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        regionId: regionId,
+        areaName: areaName,
+        riskLevel: riskLevel,
+        riskScore: riskScore,
+        message: 'Emergency SOS. User needs immediate help.',
+      );
+
+      if (!mounted) return;
+      setState(() => _isSendingSOS = false);
+
+      if (response?['status'] == 'success') {
+        _startSOSCooldown();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('SOS sent to authorities. Help request received.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else {
+        throw Exception('Unable to send SOS. Please try again.');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSendingSOS = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('SOS failed: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  bool get _isSOSOnCooldown {
+    final nextAllowed = _nextSOSAllowedAt;
+    return nextAllowed != null && DateTime.now().isBefore(nextAllowed);
+  }
+
+  void _startSOSCooldown() {
+    _sosUnlockTimer?.cancel();
+
+    setState(() {
+      _nextSOSAllowedAt = DateTime.now().add(const Duration(minutes: 5));
+    });
+
+    _sosUnlockTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      if (!_isSOSOnCooldown) {
+        timer.cancel();
+        setState(() => _nextSOSAllowedAt = null);
+        return;
+      }
+
+      setState(() {});
+    });
+  }
+
+  String _formatSOSCooldown() {
+    final nextAllowed = _nextSOSAllowedAt;
+    if (nextAllowed == null) return 'SOS available soon';
+
+    final remaining = nextAllowed.difference(DateTime.now());
+    final totalSeconds = remaining.inSeconds.clamp(0, 300);
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return 'SOS in $minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  String _formatSafeCooldownFor(LanguageProvider langProvider) {
+    final text = _formatSafeCooldown();
+    if (langProvider.isEnglish) return text;
+    if (_nextSafeMarkAt == null) return langProvider.tr('Notify authorities that you are safe');
+    final remaining = _nextSafeMarkAt!.difference(DateTime.now());
+    if (remaining <= Duration.zero) return langProvider.tr('You can mark yourself safe again now');
+    final minutes = remaining.inMinutes + (remaining.inSeconds % 60 == 0 ? 0 : 1);
+    return 'حکام کو اطلاع دے دی گئی۔ آپ ${minutes} منٹ بعد دوبارہ اپ ڈیٹ کر سکتے ہیں';
+  }
+
+  String _formatSOSCooldownFor(LanguageProvider langProvider) {
+    final nextAllowed = _nextSOSAllowedAt;
+    if (langProvider.isEnglish) return _formatSOSCooldown();
+    if (nextAllowed == null) return 'SOS جلد دستیاب ہوگا';
+    final remaining = nextAllowed.difference(DateTime.now());
+    final totalSeconds = remaining.inSeconds.clamp(0, 300);
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return 'SOS $minutes:${seconds.toString().padLeft(2, '0')} بعد';
+  }
+
+  String _riskLevelFromRegion(Map<String, dynamic>? region) {
+    final score = (region?['current_risk_score'] as num?)?.toDouble() ?? 0.0;
+    if (score >= 0.7) return 'CRITICAL';
+    if (score >= 0.5) return 'HIGH';
+    if (score >= 0.3) return 'MEDIUM';
+    return 'LOW';
+  }
+
+  Widget _buildRegionsSliver(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
+    if (_isRegionsLoading && _regions.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 40),
+              const CircularProgressIndicator(
+                color: AppTheme.accentTeal,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                langProvider.tr('Loading regions...'),
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_regionsError != null && _regions.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppTheme.spacingLarge),
+            child: Column(
+              children: [
+                const Icon(
+                  LucideIcons.wifiOff,
+                  size: 48,
+                  color: Colors.red,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  langProvider.tr('Connection Error'),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  langProvider.tr(_regionsError!.replaceAll('Exception: ', '')),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: _refreshData,
+                  icon: const Icon(LucideIcons.refreshCw),
+                  label: Text(langProvider.tr('Retry')),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_regions.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppTheme.spacingLarge),
+            child: Column(
+              children: [
+                 Icon(
+                  LucideIcons.mapPin,
+                  size: 48,
+                  color: AppTheme.textSecondary,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  langProvider.tr('No regions available'),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SliverList(
+      delegate: SliverChildListDelegate(
+        _regions.asMap().entries.map((entry) {
+          final index = entry.key;
+          final region = entry.value;
+          final regionKey = (region['id'] ?? region['name'] ?? index).toString();
+          final card = Padding(
+            key: ValueKey(region['id'] ?? region['name'] ?? index),
+            padding: const EdgeInsets.only(
+              bottom: AppTheme.spacingMedium,
+            ),
+            child: _RegionCard(region: region),
+          );
+
+          return _RegionCardEntrance(
+            animationKey: regionKey,
+            shouldAnimate: _animateRegionCardsOnFirstLoad &&
+                !_playedRegionEntryAnimations.contains(regionKey),
+            delay: Duration(milliseconds: index * 80),
+            onAnimationComplete: () {
+              _playedRegionEntryAnimations.add(regionKey);
+            },
+            child: card,
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    context.watch<ThemeProvider>();
     final langProvider = context.watch<LanguageProvider>();
-    
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      // Light warm-white scaffold background
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _refreshData,
+          color: AppTheme.accentTeal,
           child: CustomScrollView(
             slivers: [
+              // App header row — white surface with dark text
               SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.all(
@@ -332,15 +631,9 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: Theme.of(context).cardColor,
+                                color: AppTheme.surface,
                                 shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
+                                boxShadow: AppTheme.cardShadow,
                               ),
                               padding: const EdgeInsets.all(4),
                               child: ClipOval(
@@ -356,7 +649,8 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                                 langProvider.appName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.headlineMedium,
+                                style:
+                                    Theme.of(context).textTheme.headlineMedium,
                               ),
                             ),
                           ],
@@ -369,29 +663,31 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                           // Language Toggle
                           Container(
                             decoration: BoxDecoration(
-                              color: Theme.of(context).cardColor,
+                              color: AppTheme.surface,
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: AppTheme.cardShadow,
                             ),
                             child: IconButton(
                               icon: const Icon(LucideIcons.globe),
-                              color: Theme.of(context).colorScheme.primary,
+                              color: AppTheme.accentTeal,
                               onPressed: () {
-                                context.read<LanguageProvider>().toggleLanguage();
+                                context
+                                    .read<LanguageProvider>()
+                                    .toggleLanguage();
                               },
-                              tooltip: 'Toggle Language',
+                              tooltip: langProvider.tr('Toggle Language'),
                             ),
                           ),
                           const SizedBox(width: AppTheme.spacingSmall),
                           Container(
                             decoration: BoxDecoration(
-                              color: Theme.of(context).cardColor,
+                              color: AppTheme.surface,
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: AppTheme.cardShadow,
                             ),
                             child: IconButton(
                               icon: const Icon(LucideIcons.settings),
-                              color: Theme.of(context).colorScheme.primary,
+                              color: AppTheme.accentTeal,
                               onPressed: () {
                                 Navigator.of(context).pushNamed('/settings');
                               },
@@ -400,13 +696,13 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                           const SizedBox(width: AppTheme.spacingSmall),
                           Container(
                             decoration: BoxDecoration(
-                              color: Theme.of(context).cardColor,
+                              color: AppTheme.surface,
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: AppTheme.cardShadow,
                             ),
                             child: IconButton(
                               icon: const Icon(LucideIcons.bell),
-                              color: Theme.of(context).colorScheme.primary,
+                              color: AppTheme.accentTeal,
                               onPressed: () {
                                 Navigator.of(context).pushNamed('/alert_feed');
                               },
@@ -416,7 +712,10 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                       ),
                     ],
                   ),
-                ).animate().fadeIn(duration: 600.ms).slideY(begin: -0.1, end: 0),
+                )
+                    .animate()
+                    .fadeIn(duration: 600.ms)
+                    .slideY(begin: -0.1, end: 0),
               ),
 
               // Smart Weather & Risk Widget
@@ -434,10 +733,13 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                   child: _SafetyButton(
                     isMarkedSafe: _isMarkedSafe,
                     isLoading: _isMarkingSafe,
-                    subtitle: _formatSafeCooldown(),
+                    subtitle: _formatSafeCooldownFor(langProvider),
                     onPressed: _markAsSafe,
                   ),
-                ).animate().fadeIn(duration: 600.ms, delay: 100.ms).slideY(begin: 0.1, end: 0),
+                )
+                    .animate()
+                    .fadeIn(duration: 600.ms, delay: 100.ms)
+                    .slideY(begin: 0.1, end: 0),
               ),
 
               // Quick Actions
@@ -450,7 +752,7 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Quick Actions',
+                        langProvider.tr('Quick Actions'),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
@@ -458,7 +760,10 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                       const SizedBox(height: AppTheme.spacingMedium),
                       LayoutBuilder(
                         builder: (context, constraints) {
-                          final buttonWidth = (constraints.maxWidth - AppTheme.spacingMedium) / 2;
+                          final buttonWidth =
+                              (constraints.maxWidth -
+                                      (AppTheme.spacingMedium * 2)) /
+                                  3;
 
                           return Wrap(
                             spacing: AppTheme.spacingMedium,
@@ -467,20 +772,11 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                               SizedBox(
                                 width: buttonWidth,
                                 child: _QuickActionButton(
-                                  icon: LucideIcons.map,
-                                  label: 'Map View',
-                                  onTap: () {
-                                    Navigator.of(context).pushNamed('/community_map');
-                                  },
-                                ),
-                              ),
-                              SizedBox(
-                                width: buttonWidth,
-                                child: _QuickActionButton(
                                   icon: LucideIcons.lightbulb,
-                                  label: 'Safety Tips',
+                                  label: langProvider.tr('Safety Tips'),
                                   onTap: () {
-                                    Navigator.of(context).pushNamed('/safety_guidelines');
+                                    Navigator.of(context)
+                                        .pushNamed('/safety_guidelines');
                                   },
                                 ),
                               ),
@@ -488,19 +784,25 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                                 width: buttonWidth,
                                 child: _QuickActionButton(
                                   icon: LucideIcons.flag,
-                                  label: 'Report',
+                                  label: langProvider.tr('Report'),
                                   onTap: () {
-                                    Navigator.of(context).pushNamed('/report_incident');
+                                    Navigator.of(context)
+                                        .pushNamed('/report_incident');
                                   },
                                 ),
                               ),
                               SizedBox(
                                 width: buttonWidth,
                                 child: _QuickActionButton(
-                                  icon: LucideIcons.refreshCw,
-                                  label: 'Refresh',
-                                  onTap: _refreshData,
-                                  isLoading: _isRefreshing,
+                                  icon: LucideIcons.siren,
+                                  label: _isSOSOnCooldown
+                                      ? _formatSOSCooldownFor(langProvider)
+                                      : langProvider.tr('SOS'),
+                                  onTap: _sendSOS,
+                                  isLoading: _isSendingSOS,
+                                  isDisabled: _isSOSOnCooldown,
+                                  color: Colors.red,
+                                  isCritical: true,
                                 ),
                               ),
                             ],
@@ -509,7 +811,10 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                       ),
                     ],
                   ),
-                ).animate().fadeIn(duration: 600.ms, delay: 200.ms).slideY(begin: 0.2, end: 0),
+                )
+                    .animate()
+                    .fadeIn(duration: 600.ms, delay: 200.ms)
+                    .slideY(begin: 0.2, end: 0),
               ),
 
               const SliverToBoxAdapter(
@@ -523,7 +828,7 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                     horizontal: AppTheme.spacingLarge,
                   ),
                   child: Text(
-                    'Monitored Regions',
+                    langProvider.tr('Monitored Regions'),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
@@ -540,145 +845,212 @@ class _CommunityDashboardState extends State<CommunityDashboard> with SingleTick
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppTheme.spacingLarge,
                 ),
-                sliver: FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _regionsFuture,
-                  builder: (context, snapshot) {
-                    // Loading state
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return SliverToBoxAdapter(
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const SizedBox(height: 40),
-                              const CircularProgressIndicator(),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Loading regions...',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                              const SizedBox(height: 40),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-
-                    // Capture data for "I am Safe" feature
-                    if (snapshot.hasData) {
-                      _regions = snapshot.data!;
-                    }
-
-                    // Error state
-                    if (snapshot.hasError) {
-                      return SliverToBoxAdapter(
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(AppTheme.spacingLarge),
-                            child: Column(
-                              children: [
-                                const Icon(
-                                  LucideIcons.wifiOff,
-                                  size: 48,
-                                  color: Colors.red,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Connection Error',
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Server is not live right now. Please try again after the backend finishes deploying.',
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 16),
-                                ElevatedButton.icon(
-                                  onPressed: _refreshData,
-                                  icon: const Icon(LucideIcons.refreshCw),
-                                  label: const Text('Retry'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    // Empty state
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return SliverToBoxAdapter(
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(AppTheme.spacingLarge),
-                            child: Column(
-                              children: [
-                                const Icon(
-                                  LucideIcons.mapPin,
-                                  size: 48,
-                                  color: AppTheme.textSecondary,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No regions available',
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    // Success state with region cards
-                    final regions = snapshot.data!;
-                    return SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final region = regions[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: AppTheme.spacingMedium,
-                            ),
-                            child: _RegionCard(region: region)
-                                .animate()
-                                .fadeIn(
-                                  duration: 600.ms,
-                                  delay: (600 + (index * 100)).ms,
-                                )
-                                .slideX(begin: 0.2, end: 0),
-                          );
-                        },
-                        childCount: regions.length,
-                      ),
-                    );
-                  },
-                ),
+                sliver: _buildRegionsSliver(context),
               ),
 
               const SliverToBoxAdapter(
-                child: SizedBox(height: AppTheme.spacingLarge),
+                child: SizedBox(height: AppTheme.spacingXLarge),
               ),
             ],
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const RiskMapScreen(),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _AssistantFloatingButton(
+            onTap: () => Navigator.of(context).pushNamed('/assistant'),
+            tooltip: langProvider.tr('HillSafe Assistant'),
+            label: langProvider.tr('AI Assistant'),
+          ).animate().fadeIn(duration: 500.ms, delay: 650.ms).scale(),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'risk_map_fab',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const RiskMapScreen(),
+                ),
+              );
+            },
+            // FAB uses accentTeal as per new design system
+            backgroundColor: AppTheme.accentTeal,
+            icon: const Icon(LucideIcons.map, color: Colors.white),
+            label: Text(
+              langProvider.tr('Risk Map'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          );
-        },
-        backgroundColor: AppTheme.primaryColor,
-        icon: const Icon(LucideIcons.map, color: Colors.white),
-        label: const Text(
-          'Risk Map',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ).animate().fadeIn(duration: 600.ms, delay: 800.ms).scale(),
+        ],
+      ),
+    );
+  }
+}
+
+class _RegionCardEntrance extends StatefulWidget {
+  final String animationKey;
+  final bool shouldAnimate;
+  final Duration delay;
+  final VoidCallback onAnimationComplete;
+  final Widget child;
+
+  const _RegionCardEntrance({
+    required this.animationKey,
+    required this.shouldAnimate,
+    required this.delay,
+    required this.onAnimationComplete,
+    required this.child,
+  });
+
+  @override
+  State<_RegionCardEntrance> createState() => _RegionCardEntranceState();
+}
+
+class _RegionCardEntranceState extends State<_RegionCardEntrance>
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _offset;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+      value: widget.shouldAnimate ? 0 : 1,
+    );
+
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+
+    _opacity = Tween<double>(begin: 0, end: 1).animate(curved);
+    _offset = Tween<Offset>(
+      begin: const Offset(0, 0.12),
+      end: Offset.zero,
+    ).animate(curved);
+
+    if (widget.shouldAnimate) {
+      Future.delayed(widget.delay, () {
+        if (!mounted) return;
+        _controller.forward().whenComplete(widget.onAnimationComplete);
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _RegionCardEntrance oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.shouldAnimate && _controller.value != 1) {
+      _controller.value = 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    if (!widget.shouldAnimate && _controller.value == 1) {
+      return widget.child;
+    }
+
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(
+        position: _offset,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _AssistantFloatingButton extends StatelessWidget {
+  final VoidCallback onTap;
+  final String tooltip;
+  final String label;
+
+  const _AssistantFloatingButton({
+    required this.onTap,
+    required this.tooltip,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(28),
+          child: Container(
+            height: 52,
+            padding: const EdgeInsets.fromLTRB(10, 7, 14, 7),
+            decoration: BoxDecoration(
+              // FAB uses accentTeal as per new design system
+              color: AppTheme.accentTeal,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: Colors.white.withOpacity(0.92), width: 1.5),
+              boxShadow: AppTheme.tealShadow,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppTheme.borderColor,
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    LucideIcons.bot,
+                    color: AppTheme.accentTeal,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                 Icon(
+                  LucideIcons.sparkles,
+                  color: AppTheme.accentTealLight,
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
         ),
-      ).animate().fadeIn(duration: 600.ms, delay: 800.ms).scale(),
+      ),
     );
   }
 }
@@ -689,22 +1061,22 @@ class _RegionCard extends StatelessWidget {
 
   const _RegionCard({required this.region});
 
-  // Traffic Light Risk System
+  // 4-Level Risk System
   RiskLevel _getRiskLevel(double score) {
-    if (score < 0.15) {
-      return RiskLevel.noRisk;
-    } else if (score < 0.3) {
-      return RiskLevel.safe;
+    if (score < 0.3) {
+      return RiskLevel.low;
+    } else if (score < 0.5) {
+      return RiskLevel.medium;
     } else if (score < 0.7) {
-      return RiskLevel.caution;
+      return RiskLevel.high;
     } else {
-      return RiskLevel.danger;
+      return RiskLevel.critical;
     }
   }
 
   String _formatLastUpdated(String? timestamp) {
     if (timestamp == null) return 'Unknown';
-    
+
     try {
       final dateTime = DateTime.parse(timestamp);
       final now = DateTime.now();
@@ -724,12 +1096,210 @@ class _RegionCard extends StatelessWidget {
     }
   }
 
+  String _formatLastUpdatedFor(String? timestamp, LanguageProvider langProvider) {
+    final formatted = _formatLastUpdated(timestamp);
+    if (langProvider.isEnglish) return formatted;
+    if (formatted == 'Unknown') return 'نامعلوم';
+    if (formatted == 'Just now') return 'ابھی';
+    if (formatted.endsWith('m ago')) {
+      return '${formatted.replaceAll('m ago', '')} منٹ پہلے';
+    }
+    if (formatted.endsWith('h ago')) {
+      return '${formatted.replaceAll('h ago', '')} گھنٹے پہلے';
+    }
+    return formatted;
+  }
+
+  String _translatedRegionName(String value, LanguageProvider langProvider) {
+    if (langProvider.isEnglish) return value;
+    final key = value.toLowerCase().trim();
+    const names = {
+      'kohistan': 'کوہستان',
+      'swat': 'سوات',
+      'murree': 'مری',
+      'abbottabad': 'ایبٹ آباد',
+      'gilgit': 'گلگت',
+      'mansehra': 'مانسہرہ',
+      'neelum valley': 'وادی نیلم',
+      'chitral': 'چترال',
+      'hunza': 'ہنزہ',
+      'skardu': 'سکردو',
+    };
+    return names[key] ?? value;
+  }
+
+  String _translatedDistrict(String value, LanguageProvider langProvider) {
+    if (langProvider.isEnglish || value.trim().isEmpty) return value;
+    final key = value.toLowerCase().trim();
+    const districts = {
+      'upper kohistan': 'اپر کوہستان',
+      'swat': 'سوات',
+      'rawalpindi': 'راولپنڈی',
+      'abbottabad': 'ایبٹ آباد',
+      'gilgit': 'گلگت',
+      'mansehra': 'مانسہرہ',
+      'neelum': 'نیلم',
+      'chitral': 'چترال',
+      'hunza': 'ہنزہ',
+      'skardu': 'سکردو',
+    };
+    return districts[key] ?? value;
+  }
+
+  String _riskLabelFor(RiskLevel riskLevel, LanguageProvider langProvider) {
+    if (langProvider.isEnglish) return riskLevel.label;
+    return switch (riskLevel) {
+      RiskLevel.low => 'کم',
+      RiskLevel.medium => 'درمیانہ',
+      RiskLevel.high => 'زیادہ',
+      RiskLevel.critical => 'انتہائی',
+    };
+  }
+
+  String _regionComment(RiskLevel riskLevel, LanguageProvider langProvider) {
+    final rawName = (region['name'] ?? 'This area').toString();
+    final rawDistrict = (region['district'] ?? '').toString();
+    final place = _shortPlaceName(_translatedRegionName(rawName, langProvider));
+    final key = '${rawName.toLowerCase()} ${rawDistrict.toLowerCase()}';
+
+    if (langProvider.isUrdu) {
+      final comments = switch (riskLevel) {
+        RiskLevel.low => [
+            '$place میں حالات فی الحال محفوظ ہیں۔',
+            '$place میں خطرے کی علامات کم ہیں۔',
+            '$place کے راستے ابھی مستحکم ہیں۔',
+            '$place میں معمول کی احتیاط کافی ہے۔',
+          ],
+        RiskLevel.medium => [
+            '$place میں بارش کے بعد احتیاط کریں۔',
+            '$place میں ڈھلوانوں پر نظر رکھیں۔',
+            '$place کے سفر سے پہلے اپ ڈیٹ دیکھیں۔',
+            '$place میں درمیانی سطح کا خطرہ ہے۔',
+          ],
+        RiskLevel.high => [
+            '$place میں غیر مستحکم جگہوں سے بچیں۔',
+            '$place کے راستوں پر اضافی احتیاط کریں۔',
+            '$place میں بارش کے بعد خطرہ بڑھ سکتا ہے۔',
+            '$place میں محفوظ راستہ اختیار کریں۔',
+          ],
+        RiskLevel.critical => [
+            '$place میں غیر ضروری سفر سے گریز کریں۔',
+            '$place میں فوری احتیاط ضروری ہے۔',
+            '$place کی ڈھلوانوں سے دور رہیں۔',
+            '$place کے لیے سرکاری ہدایات پر عمل کریں۔',
+          ],
+      };
+      final index =
+          key.codeUnits.fold<int>(0, (sum, code) => sum + code) % comments.length;
+      return comments[index];
+    }
+
+    final terrain = _terrainPhrase(key);
+    final comments = switch (riskLevel) {
+      RiskLevel.low => [
+          '$place routes look stable.',
+          'No active concern in $place.',
+          '$place looks calm for now.',
+          '$place slopes appear steady.',
+          'Normal conditions around $place.',
+          '$place travel looks clear.',
+          'No fresh risk signs in $place.',
+          '$place area looks stable.',
+          'Routine watch only in $place.',
+          '$place routes are calm.',
+          'No warning signs near $terrain.',
+          '$terrain around $place look safe.',
+        ],
+      RiskLevel.medium => [
+          '$place: stay aware near $terrain.',
+          'Watch $terrain in $place after rain.',
+          '$place needs routine alert checks.',
+          'Medium risk around $place routes.',
+          '$place: keep an eye on $terrain.',
+          'Travel normally, watch $place.',
+          '$place slopes need light caution.',
+          'Check updates before $place travel.',
+          '$place remains mostly stable.',
+          '$terrain in $place look manageable.',
+          'Stay alert on $place roads.',
+          '$place: monitor rain changes.',
+        ],
+      RiskLevel.high => [
+          '$place: use caution near $terrain.',
+          'Watch $place $terrain after rain.',
+          'Avoid weak spots in $place.',
+          'Travel carefully through $place.',
+          '$place routes need extra care.',
+          'Slow down near $place slopes.',
+          '$place: check alerts before travel.',
+          'Limit risky movement in $place.',
+          'Stay clear of loose $terrain.',
+          '$place may shift after showers.',
+          'Use safer routes around $place.',
+          '$place: avoid unstable edges.',
+        ],
+      RiskLevel.critical => [
+          '$place: avoid risky $terrain.',
+          'Critical danger around $place.',
+          'Follow alerts for $place now.',
+          'Avoid travel through $place.',
+          '$place routes may be unsafe.',
+          'Stay away from $place slopes.',
+          '$place: move only if needed.',
+          'Keep clear of $place danger zones.',
+          'Do not use risky $terrain.',
+          '$place needs urgent caution.',
+          'Delay nonessential $place travel.',
+          'Follow official guidance in $place.',
+        ],
+    };
+
+    final index =
+        key.codeUnits.fold<int>(0, (sum, code) => sum + code) % comments.length;
+    return comments[index];
+  }
+
+  String _shortPlaceName(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return 'This area';
+    if (trimmed.length <= 16) return trimmed;
+    return trimmed.split(RegExp(r'\s+')).take(2).join(' ');
+  }
+
+  String _terrainPhrase(String key) {
+    if (key.contains('murree')) return 'hillside roads';
+    if (key.contains('swat')) return 'valley routes';
+    if (key.contains('kohistan')) return 'steep slopes';
+    if (key.contains('hunza')) return 'mountain passes';
+    if (key.contains('skardu')) return 'high routes';
+    if (key.contains('neelum')) return 'valley edges';
+    if (key.contains('gilgit')) return 'exposed roads';
+    if (key.contains('abbottabad')) return 'hill roads';
+    if (key.contains('mansehra')) return 'slope paths';
+    if (key.contains('chitral')) return 'mountain roads';
+    return 'local slopes';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
     final score = (region['current_risk_score'] as num?)?.toDouble() ?? 0.0;
     final riskLevel = _getRiskLevel(score);
-    final lastUpdated = _formatLastUpdated(region['last_updated']);
+    final lastUpdated = _formatLastUpdatedFor(
+      region['last_updated'],
+      langProvider,
+    );
+    final comment = _regionComment(riskLevel, langProvider);
+    final regionName = _translatedRegionName(
+      (region['name'] ?? 'Unknown Region').toString(),
+      langProvider,
+    );
+    final districtName = _translatedDistrict(
+      (region['district'] ?? '').toString(),
+      langProvider,
+    );
 
+    // Alert cards: white surface with colored left border for severity
     return InkWell(
       onTap: () {
         Navigator.of(context).push(
@@ -742,52 +1312,65 @@ class _RegionCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppTheme.spacingMedium),
         decoration: BoxDecoration(
-          color: riskLevel.color.withOpacity(0.1),
+          color: AppTheme.surface,
           borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-          border: Border.all(
-            color: riskLevel.color.withOpacity(0.3),
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: riskLevel.color.withOpacity(0.2),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          border: Border.all(color: AppTheme.borderColor),
+          boxShadow: AppTheme.cardShadow,
         ),
         child: Row(
           children: [
+            // Left Severity Color Bar
+            Container(
+              width: 5,
+              height: 72,
+              decoration: BoxDecoration(
+                color: riskLevel.color,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(width: AppTheme.spacingMedium),
+
             // Risk Icon
             Container(
               padding: const EdgeInsets.all(AppTheme.spacingSmall),
               decoration: BoxDecoration(
-                color: riskLevel.color,
+                color: riskLevel.color.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 riskLevel.icon,
-                color: Colors.white,
+                color: riskLevel.color,
                 size: 32,
               ),
             ),
             const SizedBox(width: AppTheme.spacingMedium),
-  
+
             // Content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    region['name'] ?? 'Unknown Region',
+                    regionName,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary,
                         ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    region['district'] ?? '',
+                    districtName,
                     style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    comment,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textSecondary,
+                          height: 1.2,
+                        ),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -807,7 +1390,7 @@ class _RegionCard extends StatelessWidget {
                 ],
               ),
             ),
-  
+
             // Risk Badge
             Container(
               padding: const EdgeInsets.symmetric(
@@ -821,7 +1404,7 @@ class _RegionCard extends StatelessWidget {
               child: Column(
                 children: [
                   Text(
-                    riskLevel.label,
+                    _riskLabelFor(riskLevel, langProvider),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -848,23 +1431,23 @@ class _RegionCard extends StatelessWidget {
 
 // Risk Level Enum
 enum RiskLevel {
-  noRisk(
-    label: 'NO RISK',
-    color: Colors.green,
-    icon: LucideIcons.checkCircle,
-  ),
-  safe(
+  low(
     label: 'LOW',
     color: Colors.green,
     icon: LucideIcons.checkCircle,
   ),
-  caution(
-    label: 'CAUTION',
+  medium(
+    label: 'MEDIUM',
+    color: Colors.amber,
+    icon: LucideIcons.alertTriangle,
+  ),
+  high(
+    label: 'HIGH',
     color: Colors.orange,
     icon: LucideIcons.alertTriangle,
   ),
-  danger(
-    label: 'DANGER',
+  critical(
+    label: 'CRITICAL',
     color: Colors.red,
     icon: LucideIcons.alertOctagon,
   );
@@ -886,66 +1469,130 @@ class _QuickActionButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final bool isLoading;
+  final bool isDisabled;
+  final Color? color;
+  final bool isCritical;
 
   const _QuickActionButton({
     required this.icon,
     required this.label,
     required this.onTap,
     this.isLoading = false,
+    this.isDisabled = false,
+    this.color,
+    this.isCritical = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Non-critical buttons use accentTeal; critical (SOS) keeps its red color
+    final actionColor = color ?? AppTheme.accentTeal;
+    final enabled = !isLoading && !isDisabled;
+    final cardColor = isCritical && enabled
+        ? const Color(0xFFB91C1C)
+        : AppTheme.surface;
+    final labelColor = isCritical && enabled
+        ? Colors.white
+        : AppTheme.textPrimary;
+
     return GestureDetector(
-      onTap: isLoading ? null : onTap,
+      onTap: enabled ? onTap : null,
       child: Container(
         padding: const EdgeInsets.symmetric(
           vertical: AppTheme.spacingMedium,
         ),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
+          color: cardColor,
           borderRadius: BorderRadius.circular(AppTheme.cardRadius),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 16,
+              color: isCritical && enabled
+                  ? const Color(0xFFDC2626).withOpacity(0.36)
+                  : Colors.black.withOpacity(0.06),
+              blurRadius: isCritical && enabled ? 22 : 16,
               offset: const Offset(0, 8),
               spreadRadius: 0,
             ),
           ],
+          border: isCritical
+              ? Border.all(
+                  color: enabled
+                      ? const Color(0xFFFCA5A5)
+                      : actionColor.withOpacity(0.18),
+                  width: 1.2,
+                )
+              : Border.all(color: AppTheme.borderColor),
         ),
         child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: isLoading
-                  ? SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Theme.of(context).colorScheme.primary,
+            Opacity(
+              opacity: enabled ? 1 : 0.55,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (isCritical && enabled)
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.28),
+                          width: 2,
                         ),
                       ),
                     )
-                  : Icon(
-                      icon,
-                      size: 24,
-                      color: Theme.of(context).colorScheme.primary,
+                        .animate(
+                          onPlay: (controller) => controller.repeat(),
+                        )
+                        .scale(
+                          begin: const Offset(0.82, 0.82),
+                          end: const Offset(1.2, 1.2),
+                          duration: 1400.ms,
+                        )
+                        .fadeOut(duration: 1400.ms),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isCritical && enabled
+                          ? Colors.white
+                          : actionColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
                     ),
+                    child: isLoading
+                        ? SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                isCritical && enabled
+                                    ? const Color(0xFFB91C1C)
+                                    : actionColor,
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            icon,
+                            size: 24,
+                            color: isCritical && enabled
+                                ? const Color(0xFFB91C1C)
+                                : actionColor,
+                          ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: AppTheme.spacingSmall),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w700,
+                    fontWeight: isCritical ? FontWeight.w900 : FontWeight.w700,
                     fontSize: 10,
-                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                    color: labelColor,
+                    height: 1.05,
                   ),
               textAlign: TextAlign.center,
             ),
@@ -980,23 +1627,17 @@ class _SafetyButton extends StatelessWidget {
           horizontal: AppTheme.spacingMedium,
         ),
         decoration: BoxDecoration(
-          color: isMarkedSafe 
-              ? Colors.green.shade600 
-              : Colors.grey.shade100, // Explicitly grey unpressed
+          color: isMarkedSafe
+              ? Colors.green.shade600
+              : AppTheme.surface, // White surface when unactivated
           borderRadius: BorderRadius.circular(AppTheme.cardRadius),
           border: Border.all(
-            color: isMarkedSafe 
-                ? Colors.green.shade700 
-                : Colors.grey.shade300, // Explicit grey border
+            color: isMarkedSafe
+                ? Colors.green.shade700
+                : AppTheme.borderColor, // Teal border hint when inactive
             width: 2,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: (isMarkedSafe ? Colors.green : Colors.black).withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: AppTheme.cardShadow,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1007,14 +1648,17 @@ class _SafetyButton extends StatelessWidget {
                 height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation(Colors.blue),
+                  // Use accentTeal for loading spinner
+                  valueColor: AlwaysStoppedAnimation(AppTheme.accentTeal),
                 ),
               )
             else
               Icon(
-                isMarkedSafe ? LucideIcons.checkCircle : LucideIcons.shieldCheck,
+                isMarkedSafe
+                    ? LucideIcons.checkCircle
+                    : LucideIcons.shieldCheck,
                 size: 28,
-                color: isMarkedSafe ? Colors.white : Colors.grey.shade400,
+                color: isMarkedSafe ? Colors.white : AppTheme.accentTeal,
               ),
             const SizedBox(width: 16),
             Expanded(
@@ -1027,29 +1671,32 @@ class _SafetyButton extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: isMarkedSafe ? Colors.white : Colors.grey.shade700,
-                      letterSpacing: isMarkedSafe ? 1.2 : 0,
-                    ),
+                          fontWeight: FontWeight.bold,
+                          color: isMarkedSafe
+                              ? Colors.white
+                              : AppTheme.textPrimary,
+                          letterSpacing: isMarkedSafe ? 1.2 : 0,
+                        ),
                   ),
                   Text(
                     subtitle,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isMarkedSafe ? Colors.white.withOpacity(0.8) : Colors.grey.shade500,
-                    ),
+                          color: isMarkedSafe
+                              ? Colors.white.withOpacity(0.8)
+                              : AppTheme.textSecondary,
+                        ),
                   ),
                 ],
               ),
             ),
             if (!isMarkedSafe && !isLoading)
-              Icon(LucideIcons.chevronRight, size: 20, color: Colors.grey.shade400),
+              Icon(LucideIcons.chevronRight,
+                  size: 20, color: AppTheme.accentTeal),
           ],
         ),
       ),
     );
   }
 }
-
-

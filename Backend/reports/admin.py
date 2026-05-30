@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import IncidentReport, SafetyStatus
+from .models import IncidentReport, SafetyStatus, SOSRequest
 
 
 @admin.register(IncidentReport)
@@ -64,3 +64,13 @@ class SafetyStatusAdmin(admin.ModelAdmin):
             'fields': ('is_safe', 'last_marked_at')
         }),
     )
+
+
+@admin.register(SOSRequest)
+class SOSRequestAdmin(admin.ModelAdmin):
+    """Admin interface for emergency SOS requests."""
+    list_display = ['id', 'name', 'phone_number', 'region', 'risk_level', 'status', 'timestamp']
+    list_filter = ['status', 'risk_level', 'region', 'timestamp']
+    search_fields = ['name', 'phone_number', 'area_name', 'region__name', 'message']
+    readonly_fields = ['timestamp']
+    date_hierarchy = 'timestamp'

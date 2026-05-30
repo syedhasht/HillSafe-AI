@@ -15,9 +15,13 @@ class IncidentReportSerializer(serializers.ModelSerializer):
         model = IncidentReport
         fields = [
             'id', 'user', 'user_name', 'region', 'region_name', 'region_district',
-            'description', 'image', 'timestamp', 'is_verified'
+            'description', 'latitude', 'longitude', 'area_name', 'image',
+            'timestamp', 'is_verified'
         ]
-        read_only_fields = ['id', 'user', 'timestamp', 'is_verified', 'user_name', 'region_name', 'region_district']
+        read_only_fields = [
+            'id', 'user', 'timestamp', 'is_verified', 'user_name',
+            'region_name', 'region_district'
+        ]
 
 
 class SafetyStatusSerializer(serializers.ModelSerializer):

@@ -3,8 +3,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
+import 'package:frontend_app/providers/language_provider.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/services/api_service.dart';
+import 'package:frontend_app/theme/theme_provider.dart';
 import 'package:frontend_app/constants/risk_constants.dart';
 
 /// Risk Map Screen - Visualizes regions with color-coded risk levels
@@ -66,6 +69,17 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
   }
 
   Future<void> _loadRegions() async {
+    if (widget.selectedRegion != null) {
+      setState(() {
+        _regions = [widget.selectedRegion!];
+        _isLoading = false;
+        _isLoadingMap = false;
+        _errorMessage = null;
+      });
+      _scheduleCameraFit();
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _isLoadingMap = true;
@@ -86,9 +100,7 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
         debugPrint('✓ Regions loaded: ${regions.length}');
         
         if (_regions.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-             _fitCameraToBounds();
-          });
+          _scheduleCameraFit();
         }
       }
     } catch (e) {
@@ -103,31 +115,60 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
     }
   }
 
+  void _scheduleCameraFit() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _fitCameraToBounds();
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        _fitCameraToBounds();
+      });
+    });
+  }
+
+  LatLng get _initialMapCenter {
+    final selected = widget.selectedRegion;
+    if (selected != null) {
+      return _regionPoint(selected) ?? const LatLng(30.3753, 69.3451);
+    }
+    return const LatLng(30.3753, 69.3451);
+  }
+
+  double get _initialMapZoom => widget.selectedRegion == null ? 5.5 : 9.8;
+
   List<Map<String, dynamic>> get _filteredRegions {
+    if (widget.selectedRegion != null) {
+      return _regionPoint(widget.selectedRegion!) == null
+          ? []
+          : [widget.selectedRegion!];
+    }
+
     if (_selectedFilter == 'All') return _regions;
     return _regions.where((region) {
-      final riskScore = (region['current_risk_score'] as num?)?.toDouble() ?? 0.0;
-      if (_selectedFilter == 'High Risk') return riskScore >= RiskConstants.highRiskThreshold;
-      if (_selectedFilter == 'Safe Zones') return riskScore < RiskConstants.moderateRiskThreshold;
+      final riskScore = _regionRiskScore(region);
+      if (_selectedFilter == 'Critical') return riskScore >= RiskConstants.criticalThreshold;
+      if (_selectedFilter == 'High Risk') return riskScore >= RiskConstants.highThreshold && riskScore < RiskConstants.criticalThreshold;
+      if (_selectedFilter == 'Medium Risk') return riskScore >= RiskConstants.mediumThreshold && riskScore < RiskConstants.highThreshold;
+      if (_selectedFilter == 'Low Risk') return riskScore < RiskConstants.mediumThreshold;
       return true;
     }).toList();
   }
 
   void _fitCameraToBounds() {
     if (widget.selectedRegion != null) {
-      final lat = (widget.selectedRegion!['latitude'] as num?)?.toDouble() ?? 34.0;
-      final lng = (widget.selectedRegion!['longitude'] as num?)?.toDouble() ?? 73.0;
-      _mapController.move(LatLng(lat, lng), 13.0);
+      final point = _regionPoint(widget.selectedRegion!);
+      if (point == null) return;
+
+      _mapController.move(point, 9.8);
       return;
     }
 
     if (_regions.isEmpty) return;
 
-    final points = _regions.map((region) {
-      final lat = (region['latitude'] as num?)?.toDouble() ?? 34.0;
-      final lng = (region['longitude'] as num?)?.toDouble() ?? 73.0;
-      return LatLng(lat, lng);
-    }).toList();
+    final points = _regions
+        .map(_regionPoint)
+        .whereType<LatLng>()
+        .toList();
 
     if (points.isEmpty) return;
     
@@ -145,30 +186,82 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
     );
   }
 
+  double? _asDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value.trim());
+    return null;
+  }
+
+  LatLng? _regionPoint(Map<String, dynamic> region) {
+    final lat = _asDouble(region['latitude']);
+    final lng = _asDouble(region['longitude']);
+    if (lat == null || lng == null) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return LatLng(lat, lng);
+  }
+
+  double _regionRiskScore(Map<String, dynamic> region) {
+    return _asDouble(region['current_risk_score']) ?? 0.0;
+  }
+
   Color _getRiskColor(double riskScore) {
-    if (riskScore >= RiskConstants.highRiskThreshold) {
+    if (riskScore >= RiskConstants.criticalThreshold) {
       return Colors.red;
-    } else if (riskScore >= RiskConstants.moderateRiskThreshold) {
+    } else if (riskScore >= RiskConstants.highThreshold) {
       return Colors.orange;
+    } else if (riskScore >= RiskConstants.mediumThreshold) {
+      return Colors.amber;
     } else {
       return Colors.green;
     }
   }
 
   String _getRiskLabel(double riskScore) {
-    if (riskScore >= RiskConstants.highRiskThreshold) return 'High Risk';
-    if (riskScore >= RiskConstants.moderateRiskThreshold) return 'Moderate Risk';
-    if (riskScore < RiskConstants.noRiskThreshold) return 'No Risk';
+    if (riskScore >= RiskConstants.criticalThreshold) return 'Critical Risk';
+    if (riskScore >= RiskConstants.highThreshold) return 'High Risk';
+    if (riskScore >= RiskConstants.mediumThreshold) return 'Medium Risk';
     return 'Low Risk';
   }
 
+  List<String> _riskExplanation(Map<String, dynamic> region, double riskScore) {
+    final regionName = region['name']?.toString() ?? 'This region';
+    if (riskScore >= RiskConstants.criticalThreshold) {
+      return [
+        '$regionName has a very high model score.',
+        'Heavy rainfall, steep terrain, or weak soil may be active factors.',
+        'Avoid unstable slopes and follow authority instructions.',
+      ];
+    }
+    if (riskScore >= RiskConstants.highThreshold) {
+      return [
+        '$regionName is showing high warning signals.',
+        'Rainfall and terrain conditions can increase landslide probability.',
+        'Limit travel near slopes and watch for fresh cracks or falling rocks.',
+      ];
+    }
+    if (riskScore >= RiskConstants.mediumThreshold) {
+      return [
+        '$regionName has moderate risk indicators.',
+        'Weather or slope conditions need monitoring before they worsen.',
+        'Stay updated and avoid unnecessary movement during rain.',
+      ];
+    }
+    return [
+      '$regionName is currently under low risk.',
+      'Model signals are below the danger threshold.',
+      'Continue normal caution in steep or rain-affected areas.',
+    ];
+  }
+
   void _showRegionDetails(Map<String, dynamic> region) {
-    final riskScore = (region['current_risk_score'] as num?)?.toDouble() ?? 0.0;
+    final riskScore = _regionRiskScore(region);
     final color = _getRiskColor(riskScore);
+    final explanation = _riskExplanation(region, riskScore);
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
@@ -192,6 +285,30 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
             const SizedBox(height: 8),
             _buildInfoRow('Risk Score', '${(riskScore * 100).toInt()}%'),
             const SizedBox(height: 20),
+            Text(
+              context.read<LanguageProvider>().tr('Why this alert?'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            ...explanation.map(
+              (reason) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(LucideIcons.circle, size: 8, color: color),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        context.read<LanguageProvider>().tr(reason),
+                        style: const TextStyle(fontSize: 12, height: 1.25),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -202,9 +319,9 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
               child: Row(
                 children: [
                   Icon(
-                    riskScore >= RiskConstants.highRiskThreshold 
+                    riskScore >= RiskConstants.criticalThreshold 
                         ? LucideIcons.alertOctagon 
-                        : riskScore >= RiskConstants.moderateRiskThreshold 
+                        : riskScore >= RiskConstants.mediumThreshold 
                             ? LucideIcons.alertTriangle 
                             : LucideIcons.checkCircle,
                     color: color,
@@ -213,11 +330,13 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      riskScore >= RiskConstants.highRiskThreshold 
-                          ? 'High landslide risk - Exercise extreme caution'
-                          : riskScore >= RiskConstants.moderateRiskThreshold 
-                              ? 'Moderate risk - Stay informed'
-                              : 'Low risk - Safe conditions verified',
+                      riskScore >= RiskConstants.criticalThreshold 
+                          ? 'Critical landslide risk - Evacuate if advised'
+                          : riskScore >= RiskConstants.highThreshold 
+                              ? 'High risk - Exercise extreme caution'
+                              : riskScore >= RiskConstants.mediumThreshold 
+                                  ? 'Medium risk - Stay informed'
+                                  : 'Low risk - Safe conditions verified',
                       style: TextStyle(
                         fontSize: 12,
                         color: color,
@@ -233,7 +352,7 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Dismiss'),
+            child: Text(context.read<LanguageProvider>().tr('Dismiss')),
           ),
         ],
       ),
@@ -247,7 +366,7 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
         Text(
           label,
           style: TextStyle(
-            color: Colors.grey.shade600,
+            color: AppTheme.textSecondary,
             fontSize: 14,
           ),
         ),
@@ -264,17 +383,19 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<ThemeProvider>();
     return Scaffold(
-      backgroundColor: AppTheme.surfaceGrey,
+      // Light scaffold background
+      backgroundColor: AppTheme.background,
       floatingActionButton: FloatingActionButton(
         heroTag: 'recenter_risk_map',
         onPressed: () async {
           // Show loading indicator
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Row(
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
@@ -282,11 +403,11 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   ),
-                  SizedBox(width: 12),
-                  Text('Getting your location...'),
+                  const SizedBox(width: 12),
+                  Text(context.read<LanguageProvider>().tr('Getting your location...')),
                 ],
               ),
-              duration: Duration(seconds: 2),
+              duration: const Duration(seconds: 2),
             ),
           );
 
@@ -295,15 +416,15 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
             _mapController.move(_userPosition!, 15.0);
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Row(
                   children: [
-                    Icon(LucideIcons.checkCircle, color: Colors.white, size: 20),
-                    SizedBox(width: 12),
-                    Text('Centered on your location'),
+                    const Icon(LucideIcons.checkCircle, color: Colors.white, size: 20),
+                    const SizedBox(width: 12),
+                    Text(context.read<LanguageProvider>().tr('Centered on your location')),
                   ],
                 ),
-                duration: Duration(seconds: 1),
+                duration: const Duration(seconds: 1),
                 backgroundColor: Colors.green,
               ),
             );
@@ -314,15 +435,15 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
               _mapController.move(_userPosition!, 15.0);
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
+                SnackBar(
                   content: Row(
                     children: [
-                      Icon(LucideIcons.checkCircle, color: Colors.white, size: 20),
-                      SizedBox(width: 12),
-                      Text('Centered on your location'),
+                      const Icon(LucideIcons.checkCircle, color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
+                      Text(context.read<LanguageProvider>().tr('Centered on your location')),
                     ],
                   ),
-                  duration: Duration(seconds: 1),
+                  duration: const Duration(seconds: 1),
                   backgroundColor: Colors.green,
                 ),
               );
@@ -330,17 +451,17 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
               // Location not available, show error and fit to regions
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
+                SnackBar(
                   content: Row(
                     children: [
-                      Icon(LucideIcons.alertCircle, color: Colors.white, size: 20),
-                      SizedBox(width: 12),
+                      const Icon(LucideIcons.alertCircle, color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: Text('Location unavailable. Please enable GPS.'),
+                        child: Text(context.read<LanguageProvider>().tr('Location unavailable. Please enable GPS.')),
                       ),
                     ],
                   ),
-                  duration: Duration(seconds: 3),
+                  duration: const Duration(seconds: 3),
                   backgroundColor: Colors.orange,
                 ),
               );
@@ -348,33 +469,45 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
             }
           }
         },
-        backgroundColor: AppTheme.primaryColor,
+        // FAB uses accentTeal
+        backgroundColor: AppTheme.accentTeal,
         elevation: 4,
         child: const Icon(LucideIcons.navigation, color: Colors.white, size: 24),
       ).animate().scale(begin: const Offset(0, 0), delay: 600.ms),
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: Colors.white,
-        title: const Text('Interactive Risk Map'),
+        // White AppBar with dark text/icons
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.textPrimary,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        title: Text(
+          widget.selectedRegion == null
+              ? context.watch<LanguageProvider>().tr('Interactive Risk Map')
+              : widget.selectedRegion!['name']?.toString() ??
+                  context.watch<LanguageProvider>().tr('Risk Map'),
+          style: TextStyle(color: AppTheme.textPrimary),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(LucideIcons.refreshCw),
+            icon: const Icon(LucideIcons.refreshCw, color: AppTheme.accentTeal),
             onPressed: () {
               _loadRegions();
               _getCurrentLocation();
             },
-            tooltip: 'Refresh All Data',
+            tooltip: context.read<LanguageProvider>().tr('Refresh All Data'),
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Fetching live satellite data...'),
+                  const CircularProgressIndicator(
+                    color: AppTheme.accentTeal,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(context.watch<LanguageProvider>().tr('Fetching live satellite data...')),
                 ],
               ),
             )
@@ -382,37 +515,56 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
               children: [
                 FlutterMap(
                   mapController: _mapController,
-                  options: const MapOptions(
-                    initialCenter: LatLng(30.3753, 69.3451),
-                    initialZoom: 5.5,
+                  options: MapOptions(
+                    initialCenter: _initialMapCenter,
+                    initialZoom: _initialMapZoom,
                     minZoom: 4.0,
                     maxZoom: 16.0,
+                    onMapReady: _scheduleCameraFit,
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      subdomains: const ['a', 'b', 'c'],
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.hillsafe.app',
+                      maxNativeZoom: 19,
+                      errorTileCallback: (tile, error, stackTrace) {
+                        debugPrint('Base map tile failed: $tile - $error');
+                      },
+                    ),
+                    TileLayer(
+                      urlTemplate:
+                          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.png',
+                      userAgentPackageName: 'com.hillsafe.app',
+                      maxNativeZoom: 18,
+                      tileBuilder: (context, tileWidget, tile) {
+                        return Opacity(
+                          opacity: 0.88,
+                          child: tileWidget,
+                        );
+                      },
+                      errorTileCallback: (tile, error, stackTrace) {
+                        debugPrint('Satellite map tile failed: $tile - $error');
+                      },
                     ),
                     
                     CircleLayer(
                       circles: _filteredRegions.map((region) {
-                        final riskScore = (region['current_risk_score'] as num?)?.toDouble() ?? 0.0;
+                        final point = _regionPoint(region);
+                        if (point == null) return null;
+                        final riskScore = _regionRiskScore(region);
                         final color = _getRiskColor(riskScore);
                         final radius = RiskConstants.getCircleRadius(riskScore);
                         
                         return CircleMarker(
-                          point: LatLng(
-                            (region['latitude'] as num).toDouble(),
-                            (region['longitude'] as num).toDouble(),
-                          ),
+                          point: point,
                           radius: radius, 
                           useRadiusInMeter: true,
-                          color: color.withOpacity(0.2),
-                          borderColor: color.withOpacity(0.8),
-                          borderStrokeWidth: 2,
+                          color: color.withOpacity(widget.selectedRegion == null ? 0.2 : 0.14),
+                          borderColor: color.withOpacity(0.75),
+                          borderStrokeWidth: widget.selectedRegion == null ? 2 : 1.5,
                         );
-                      }).toList(),
+                      }).whereType<CircleMarker>().toList(),
                     ),
                     
                     MarkerLayer(
@@ -426,12 +578,12 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
-                                // Pulsing outer circle
+                                // Pulsing outer circle — using accentTeal for user location
                                 Container(
                                   width: 60,
                                   height: 60,
                                   decoration: BoxDecoration(
-                                    color: Colors.blue.withOpacity(0.2),
+                                    color: AppTheme.accentTeal.withOpacity(0.2),
                                     shape: BoxShape.circle,
                                   ),
                                 ).animate(
@@ -446,14 +598,14 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                                   width: 20,
                                   height: 20,
                                   decoration: BoxDecoration(
-                                    color: Colors.blue,
+                                    color: AppTheme.accentTeal,
                                     shape: BoxShape.circle,
                                     border: Border.all(color: Colors.white, width: 3),
-                                    boxShadow: [
+                                    boxShadow: const [
                                       BoxShadow(
                                         color: Colors.black26,
                                         blurRadius: 8,
-                                        offset: const Offset(0, 2),
+                                        offset: Offset(0, 2),
                                       ),
                                     ],
                                   ),
@@ -463,14 +615,13 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                           ),
                         // Region Markers
                         ..._filteredRegions.map((region) {
-                        final riskScore = (region['current_risk_score'] as num?)?.toDouble() ?? 0.0;
+                        final point = _regionPoint(region);
+                        if (point == null) return null;
+                        final riskScore = _regionRiskScore(region);
                         final color = _getRiskColor(riskScore);
                         
                         return Marker(
-                          point: LatLng(
-                            (region['latitude'] as num).toDouble(),
-                            (region['longitude'] as num).toDouble(),
-                          ),
+                          point: point,
                           width: 140,
                           height: 60,
                           child: GestureDetector(
@@ -483,8 +634,8 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                                   decoration: BoxDecoration(
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(12),
-                                    boxShadow: [
-                                      BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, 2)),
+                                    boxShadow: const [
+                                      BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
                                     ],
                                     border: Border.all(color: color.withOpacity(0.5)),
                                   ),
@@ -503,42 +654,44 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                             ),
                           ),
                         );
-                      }).toList(),
+                      }).whereType<Marker>().toList(),
                     ],
                   ),
                 ],
               ),
                 
-                // Filters Top Bar
-                Positioned(
-                  top: 16,
-                  left: 0,
-                  right: 0,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: ['All', 'High Risk', 'Safe Zones'].map((filter) {
-                        final isSelected = _selectedFilter == filter;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(filter),
-                            selected: isSelected,
-                            onSelected: (val) {
-                              if (val) setState(() => _selectedFilter = filter);
-                            },
-                            selectedColor: AppTheme.primaryColor,
-                            labelStyle: TextStyle(
-                              color: isSelected ? Colors.white : Colors.black87,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                if (widget.selectedRegion == null)
+                  Positioned(
+                    top: 16,
+                    left: 0,
+                    right: 0,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: ['All', 'Critical', 'High Risk', 'Medium Risk', 'Low Risk'].map((filter) {
+                          final isSelected = _selectedFilter == filter;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(context.watch<LanguageProvider>().tr(filter)),
+                              selected: isSelected,
+                              onSelected: (val) {
+                                if (val) setState(() => _selectedFilter = filter);
+                              },
+                              // Selected chip uses accentTeal
+                              selectedColor: AppTheme.accentTeal,
+                              backgroundColor: AppTheme.surface,
+                              labelStyle: TextStyle(
+                                color: isSelected ? Colors.white : AppTheme.textPrimary,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              ),
                             ),
-                          ),
-                        );
-                      }).toList(),
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
-                ),
 
                 // Legend
                 Positioned(
@@ -547,11 +700,9 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
+                      color: AppTheme.surface,
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 4)),
-                      ],
+                      boxShadow: AppTheme.cardShadow,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -590,11 +741,9 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
             ),
           ),
           const SizedBox(width: 10),
-          Text(label, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+          Text(label, style: TextStyle(fontSize: 12, color: AppTheme.textPrimary)),
         ],
       ),
     );
   }
 }
-
-
