@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -953,10 +954,19 @@ class _CommunityDashboardState extends State<CommunityDashboard>
 
   @override
   Widget build(BuildContext context) {
-    context.watch<ThemeProvider>();
+    final themeProvider = context.watch<ThemeProvider>();
     final langProvider = context.watch<LanguageProvider>();
+    final isDark = themeProvider.isDarkMode;
 
-    return Scaffold(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F4F0),
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      ),
+      child: Scaffold(
       // Light warm-white scaffold background
       backgroundColor: AppTheme.background,
       body: RefreshIndicator(
@@ -1258,8 +1268,9 @@ class _CommunityDashboardState extends State<CommunityDashboard>
           ).animate().fadeIn(duration: 600.ms, delay: 800.ms).scale(),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _RegionCardEntrance extends StatefulWidget {

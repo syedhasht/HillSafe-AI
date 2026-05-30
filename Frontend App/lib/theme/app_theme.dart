@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// HillSafe AI — Clean Light Theme Design System
@@ -207,6 +208,13 @@ class AppTheme {
         elevation: 0,
         centerTitle: false,
         surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark, // Dark status bar icons in light mode!
+          statusBarBrightness: Brightness.light, // For iOS
+          systemNavigationBarColor: Color(0xFFF5F4F0),
+          systemNavigationBarIconBrightness: Brightness.dark,
+        ),
         titleTextStyle: GoogleFonts.poppins(
           fontSize: 18,
           fontWeight: FontWeight.w600,
@@ -327,6 +335,13 @@ class AppTheme {
         foregroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light, // Light status bar icons in dark mode!
+          statusBarBrightness: Brightness.dark, // For iOS
+          systemNavigationBarColor: Color(0xFF0F172A),
+          systemNavigationBarIconBrightness: Brightness.light,
+        ),
         titleTextStyle: GoogleFonts.poppins(
             fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white),
         iconTheme: const IconThemeData(color: Colors.white),

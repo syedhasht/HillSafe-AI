@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -78,15 +79,28 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
   @override
   Widget build(BuildContext context) {
     // Watch ThemeProvider so every rebuild picks up the new AppTheme.isDark value
-    context.watch<ThemeProvider>();
+    final themeProvider = context.watch<ThemeProvider>();
+    final isDark = themeProvider.isDarkMode;
 
-    return Scaffold(
-      backgroundColor: _bg(),
-      body: SafeArea(
-        child: CustomScrollView(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: isDark ? const Color(0xFF0D0F14) : const Color(0xFFF5F4F0),
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: _bg(),
+        body: CustomScrollView(
           slivers: [
             // ── Header ────────────────────────────────────────────────────
-            SliverToBoxAdapter(child: _buildHeader(context)),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+                child: _buildHeader(context),
+              ),
+            ),
 
             // ── Situation Overview ─────────────────────────────────────────
             SliverToBoxAdapter(
@@ -151,8 +165,9 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ── HEADER ────────────────────────────────────────────────────────────────
   Widget _buildHeader(BuildContext context) {
