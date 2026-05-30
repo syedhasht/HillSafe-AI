@@ -1350,10 +1350,11 @@ class ApiService {
   ///
   /// Returns the response map on success or throws on error.
   Future<Map<String, dynamic>> createAlert({
-    required int regionId,
+    int? regionId,
     required String severity,
     required String message,
     int affectedPopulation = 0,
+    bool sendToAll = false,
   }) async {
     final token = await getToken();
     final response = await http.post(
@@ -1363,10 +1364,11 @@ class ApiService {
         if (token != null) 'Authorization': 'Token $token',
       },
       body: jsonEncode({
-        'region_id': regionId,
+        if (regionId != null) 'region_id': regionId,
         'severity': severity.toUpperCase(),
         'message': message,
         'affected_population': affectedPopulation,
+        'send_to_all': sendToAll,
       }),
     ).timeout(const Duration(seconds: 15));
 

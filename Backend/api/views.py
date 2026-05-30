@@ -395,21 +395,38 @@ class CreateAlertView(APIView):
         from accounts.models import DeviceToken
 
         region_id = request.data.get('region_id')
+        send_to_all = request.data.get('send_to_all', False)
+        if isinstance(send_to_all, str):
+            send_to_all = send_to_all.lower() == 'true'
+
         severity = (request.data.get('severity') or 'HIGH').upper()
         message = (request.data.get('message') or '').strip()
         affected_population = request.data.get('affected_population', 0)
 
-        if not region_id:
-            return Response({'error': 'region_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         if not message:
             return Response({'error': 'message is required'}, status=status.HTTP_400_BAD_REQUEST)
         if severity not in {'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'}:
             severity = 'HIGH'
 
-        try:
-            region = Region.objects.get(id=region_id)
-        except Region.DoesNotExist:
-            return Response({'error': 'Region not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not region_id:
+            if send_to_all:
+                region, _ = Region.objects.get_or_create(
+                    name='All Regions',
+                    district='National',
+                    defaults={
+                        'latitude': 33.6844,
+                        'longitude': 73.0479,
+                        'current_risk_score': 0.0,
+                        'is_critical_zone': False,
+                    }
+                )
+            else:
+                return Response({'error': 'region_id is required when not sending to all users'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            try:
+                region = Region.objects.get(id=region_id)
+            except Region.DoesNotExist:
+                return Response({'error': 'Region not found'}, status=status.HTTP_404_NOT_FOUND)
 
         # Save to DB
         alert = Alert.objects.create(
@@ -432,23 +449,26 @@ class CreateAlertView(APIView):
                 cred = firebase_admin.credentials.Certificate(cred_path)
                 firebase_admin.initialize_app(cred)
 
-            nearby_tokens = []
-            located_devices = DeviceToken.objects.exclude(
-                latitude__isnull=True,
-            ).exclude(
-                longitude__isnull=True,
-            )
-            for device in located_devices:
-                distance = self._distance_km(
-                    float(device.latitude),
-                    float(device.longitude),
-                    float(region.latitude),
-                    float(region.longitude),
+            if send_to_all:
+                tokens = list(DeviceToken.objects.values_list('token', flat=True))
+            else:
+                nearby_tokens = []
+                located_devices = DeviceToken.objects.exclude(
+                    latitude__isnull=True,
+                ).exclude(
+                    longitude__isnull=True,
                 )
-                if distance <= self.alert_radius_km:
-                    nearby_tokens.append(device.token)
+                for device in located_devices:
+                    distance = self._distance_km(
+                        float(device.latitude),
+                        float(device.longitude),
+                        float(region.latitude),
+                        float(region.longitude),
+                    )
+                    if distance <= self.alert_radius_km:
+                        nearby_tokens.append(device.token)
+                tokens = nearby_tokens
 
-            tokens = nearby_tokens
             if tokens:
                 label = {
                     'CRITICAL': '\U0001f534 CRITICAL',
@@ -469,7 +489,14 @@ class CreateAlertView(APIView):
                             'region_id': str(region.id),
                             'region_name': region.name,
                         },
-                        android=messaging.AndroidConfig(priority='high'),
+                        android=messaging.AndroidConfig(
+                            priority='high',
+                            notification=messaging.AndroidNotification(
+                                sound='default',
+                                default_sound=True,
+                                notification_priority='PRIORITY_MAX',
+                            ),
+                        ),
                         apns=messaging.APNSConfig(
                             payload=messaging.APNSPayload(aps=messaging.Aps(sound='default'))
                         ),

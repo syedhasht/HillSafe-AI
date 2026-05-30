@@ -120,18 +120,22 @@ class NotificationService {
 
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-      'general',
-      'General Notifications',
-      channelDescription: 'General app notifications',
-      importance: Importance.defaultImportance,
-      priority: Priority.defaultPriority,
+      'risk_alerts',
+      'Risk Alerts',
+      channelDescription: 'Critical landslide risk alerts',
+      importance: Importance.high,
+      priority: Priority.high,
+      showWhen: true,
+      enableVibration: true,
+      playSound: true,
+      icon: '@mipmap/ic_launcher',
     );
 
     const NotificationDetails platformDetails =
         NotificationDetails(android: androidDetails);
 
     await _notifications.show(
-      id: 1, // Different ID for general notifications)
+      id: 1, // Different ID for general notifications
       title: title,
       body: body,
       notificationDetails: platformDetails,

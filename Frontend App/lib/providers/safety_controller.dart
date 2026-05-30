@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:frontend_app/services/api_service.dart';
 import 'package:frontend_app/services/notification_service.dart';
 
@@ -57,6 +58,22 @@ class SafetyController extends ChangeNotifier {
     // Initialize notification service
     await _notificationService.initialize();
     await _notificationService.requestPermissions();
+    
+    // Listen for FCM foreground messages to show proper system notification and sound when app is open!
+    try {
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        print('SafetyController: Foreground FCM received: ${message.notification?.title}');
+        final title = message.notification?.title ?? 'Emergency Alert';
+        final body = message.notification?.body ?? '';
+        _notificationService.showNotification(
+          title: title,
+          body: body,
+          payload: message.data.toString(),
+        );
+      });
+    } catch (e) {
+      print('SafetyController: Error initializing FCM foreground listener: $e');
+    }
     
     // Perform initial data update
     await updateAllData();

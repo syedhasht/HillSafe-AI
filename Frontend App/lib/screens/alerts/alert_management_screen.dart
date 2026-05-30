@@ -23,12 +23,24 @@ class _AlertManagementScreenState extends State<AlertManagementScreen> {
   // Form state
   String _severity = 'HIGH';
   Map<String, dynamic>? _selectedRegion;
+  bool _sendToAll = false;
 
   // Page state
   List<Map<String, dynamic>> _regions = [];
   bool _loadingRegions = true;
   bool _submitting = false;
   String? _regionLoadError;
+
+  void _onSendToAllChanged(bool value) {
+    setState(() {
+      _sendToAll = value;
+      if (!_sendToAll && _selectedRegion == null && _regions.isNotEmpty) {
+        _selectedRegion = _regions.first;
+      } else if (_sendToAll) {
+        _selectedRegion = null; // Default to global broadcast when checking All Users
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -68,7 +80,7 @@ class _AlertManagementScreenState extends State<AlertManagementScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedRegion == null) {
+    if (!_sendToAll && _selectedRegion == null) {
       _showSnack('Please select a region.', isError: true);
       return;
     }
@@ -76,11 +88,12 @@ class _AlertManagementScreenState extends State<AlertManagementScreen> {
     setState(() => _submitting = true);
 
     try {
-      final regionId = _selectedRegion!['id'] as int;
+      final regionId = _selectedRegion?['id'] as int?;
       final result = await _apiService.createAlert(
         regionId: regionId,
         severity: _severity,
         message: _messageController.text.trim(),
+        sendToAll: _sendToAll,
       );
 
       if (!mounted) return;
@@ -92,6 +105,14 @@ class _AlertManagementScreenState extends State<AlertManagementScreen> {
         isError: false,
       );
       _messageController.clear();
+      if (_sendToAll) {
+        setState(() {
+          _sendToAll = false;
+          if (_regions.isNotEmpty) {
+            _selectedRegion = _regions.first;
+          }
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
@@ -160,6 +181,15 @@ class _AlertManagementScreenState extends State<AlertManagementScreen> {
 
               const SizedBox(height: AppTheme.spacingLarge),
 
+              // ── Broadcast Options ───────────────────────────────────────
+              _buildSection(
+                icon: LucideIcons.radio,
+                title: 'Broadcast Options',
+                child: _buildSendToAllCheckbox(),
+              ).animate().fadeIn(duration: 600.ms, delay: 50.ms),
+
+              const SizedBox(height: AppTheme.spacingLarge),
+
               // ── Region ──────────────────────────────────────────────────
               _buildSection(
                 icon: LucideIcons.mapPin,
@@ -179,7 +209,7 @@ class _AlertManagementScreenState extends State<AlertManagementScreen> {
               const SizedBox(height: AppTheme.spacingLarge),
 
               // ── Preview badge ────────────────────────────────────────────
-              if (_selectedRegion != null)
+              if (_sendToAll || _selectedRegion != null)
                 _buildPreviewBadge()
                     .animate()
                     .fadeIn(duration: 600.ms, delay: 300.ms),
@@ -288,6 +318,8 @@ class _AlertManagementScreenState extends State<AlertManagementScreen> {
 
   // ── Region selector ───────────────────────────────────────────────────────────
 
+  // ── Region selector ───────────────────────────────────────────────────────────
+
   Widget _buildRegionSelector() {
     if (_loadingRegions) {
       return const Center(
@@ -322,44 +354,64 @@ class _AlertManagementScreenState extends State<AlertManagementScreen> {
       );
     }
 
-    if (_regions.isEmpty) {
+    if (_regions.isEmpty && !_sendToAll) {
       return Text('No regions available.',
           style: TextStyle(color: AppTheme.textSecondary));
     }
 
-    return DropdownButtonFormField<Map<String, dynamic>>(
-      value: _selectedRegion,
-      isExpanded: true,
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: AppTheme.surface,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppTheme.borderColor),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DropdownButtonFormField<Map<String, dynamic>?>(
+          value: _selectedRegion,
+          isExpanded: true,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: AppTheme.surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppTheme.borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppTheme.borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppTheme.accentTeal, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingMedium, vertical: 12),
+          ),
+          items: [
+            if (_sendToAll)
+              const DropdownMenuItem<Map<String, dynamic>?>(
+                value: null,
+                child: Text('All Regions (Global Broadcast)',
+                    style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+              ),
+            ..._regions.map((region) {
+              final name = region['name']?.toString() ?? 'Unknown';
+              final district = region['district']?.toString() ?? '';
+              return DropdownMenuItem<Map<String, dynamic>?>(
+                value: region,
+                child: Text('$name${district.isNotEmpty ? ', $district' : ''}',
+                    overflow: TextOverflow.ellipsis),
+              );
+            }),
+          ],
+          onChanged: (value) => setState(() => _selectedRegion = value),
+          validator: (value) =>
+              (!_sendToAll && value == null) ? 'Please select a region' : null,
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppTheme.borderColor),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppTheme.accentTeal, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-            horizontal: AppTheme.spacingMedium, vertical: 12),
-      ),
-      items: _regions.map((region) {
-        final name = region['name']?.toString() ?? 'Unknown';
-        final district = region['district']?.toString() ?? '';
-        return DropdownMenuItem<Map<String, dynamic>>(
-          value: region,
-          child: Text('$name${district.isNotEmpty ? ', $district' : ''}',
-              overflow: TextOverflow.ellipsis),
-        );
-      }).toList(),
-      onChanged: (value) => setState(() => _selectedRegion = value),
-      validator: (_) =>
-          _selectedRegion == null ? 'Please select a region' : null,
+        if (_sendToAll) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Note: Location is optional because "All Users" is checked. Selecting a region here will tag the alert to that location, but notification will be sent to ALL users.',
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+          ),
+        ],
+      ],
     );
   }
 
@@ -396,11 +448,82 @@ class _AlertManagementScreenState extends State<AlertManagementScreen> {
     );
   }
 
+  // ── Send to All Checkbox ──────────────────────────────────────────────────────
+
+  Widget _buildSendToAllCheckbox() {
+    return InkWell(
+      onTap: () => _onSendToAllChanged(!_sendToAll),
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(AppTheme.spacingMedium),
+        decoration: BoxDecoration(
+          color: _sendToAll
+              ? AppTheme.accentTeal.withOpacity(0.08)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _sendToAll ? AppTheme.accentTeal : AppTheme.borderColor,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: _sendToAll ? AppTheme.accentTeal : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: _sendToAll ? AppTheme.accentTeal : Colors.grey,
+                  width: 2,
+                ),
+              ),
+              child: _sendToAll
+                  ? const Icon(
+                      Icons.check,
+                      size: 18,
+                      color: Colors.white,
+                    )
+                  : null,
+            ),
+            const SizedBox(width: AppTheme.spacingMedium),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Broadcast to All Users',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Sends push notifications to all users of the app globally, regardless of their location.',
+                    style: TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Preview badge ─────────────────────────────────────────────────────────────
 
   Widget _buildPreviewBadge() {
     final color = _severityColor(_severity);
-    final regionName = _selectedRegion?['name']?.toString() ?? '';
+    final regionName = _selectedRegion?['name']?.toString() ?? 'All Regions (Global Broadcast)';
     final district = _selectedRegion?['district']?.toString() ?? '';
 
     return Container(
@@ -433,7 +556,7 @@ class _AlertManagementScreenState extends State<AlertManagementScreen> {
                       fontSize: 14),
                 ),
                 Text(
-                  '$regionName${district.isNotEmpty ? ', $district' : ''}',
+                  district.isNotEmpty ? '$regionName, $district' : regionName,
                   style: TextStyle(
                       fontSize: 12, color: AppTheme.textSecondary),
                 ),
