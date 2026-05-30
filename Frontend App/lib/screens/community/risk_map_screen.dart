@@ -33,8 +33,10 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
   bool _isLoadingLocation = false;
   String? _errorMessage;
   String _selectedFilter = 'All';
+  bool _showSatellite = false;
   LatLng? _userPosition;
   LatLng? _cachedUserPosition;
+  bool _isFirstLoad = true;
 
   @override
   void initState() {
@@ -530,7 +532,7 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                     color: AppTheme.accentTeal,
                   ),
                   const SizedBox(height: 16),
-                  Text(context.watch<LanguageProvider>().tr('Fetching live satellite data...')),
+                  Text(context.watch<LanguageProvider>().tr('Fetching live risk map...')),
                 ],
               ),
             )
@@ -561,21 +563,22 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                         debugPrint('Base map tile failed: $tile - $error');
                       },
                     ),
-                    TileLayer(
-                      urlTemplate:
-                          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.png',
-                      userAgentPackageName: 'com.hillsafe.app',
-                      maxNativeZoom: 18,
-                      tileBuilder: (context, tileWidget, tile) {
-                        return Opacity(
-                          opacity: 0.88,
-                          child: tileWidget,
-                        );
-                      },
-                      errorTileCallback: (tile, error, stackTrace) {
-                        debugPrint('Satellite map tile failed: $tile - $error');
-                      },
-                    ),
+                    if (_showSatellite)
+                      TileLayer(
+                        urlTemplate:
+                            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.png',
+                        userAgentPackageName: 'com.hillsafe.app',
+                        maxNativeZoom: 18,
+                        tileBuilder: (context, tileWidget, tile) {
+                          return Opacity(
+                            opacity: 0.88,
+                            child: tileWidget,
+                          );
+                        },
+                        errorTileCallback: (tile, error, stackTrace) {
+                          debugPrint('Satellite map tile failed: $tile - $error');
+                        },
+                      ),
                     
                     CircleLayer(
                       circles: _filteredRegions.map((region) {
@@ -749,6 +752,42 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                     ),
                   ).animate().fadeIn(duration: 400.ms),
                 ),
+                Positioned(
+                  top: widget.selectedRegion == null ? 76 : 16,
+                  right: 16,
+                  child: GestureDetector(
+                    onTap: () => setState(() => _showSatellite = !_showSatellite),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _showSatellite ? AppTheme.primaryDark : AppTheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.borderColor.withOpacity(0.4), width: 1),
+                        boxShadow: AppTheme.cardShadow,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _showSatellite ? LucideIcons.map : LucideIcons.globe,
+                            color: _showSatellite ? Colors.white : AppTheme.accentTeal,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 7),
+                          Text(
+                            _showSatellite ? 'Map View' : 'Satellite',
+                            style: TextStyle(
+                              color: _showSatellite ? Colors.white : AppTheme.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
               ],
             ),
     );
