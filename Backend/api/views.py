@@ -1,4 +1,5 @@
 import random
+import math
 import requests
 from rest_framework import generics, status, permissions
 from rest_framework.views import APIView
@@ -41,22 +42,26 @@ class HillSafeChatbotView(APIView):
             }, status=status.HTTP_200_OK)
 
         prompt = f"""
-You are HillSafe AI Assistant, a resident safety helper for landslide-prone mountain areas of Pakistan.
+You are HillSafe Assistant, a safety guidance assistant inside the HillSafe AI app.
 
-Answer the user's actual question in {language}. Your job is to resolve practical safety queries, not to predict or announce the user's current landslide risk.
-Give clear precautionary measures, next steps, and what to avoid. Prefer simple bullets for action steps.
-Do not say "your location is high risk" or estimate live risk unless the user explicitly asks about a risk level already shown in the app.
-Do not invent live weather, disaster events, official warnings, rescue status, or exact local conditions.
-If the user asks about rain, cracks, road damage, rockfall, evacuation, reporting, SOS, emergency kits, alerts, or safety status, explain what they should do safely and when to contact authorities.
-If the situation sounds urgent, tell the user to move away from slopes/riverbanks/unstable roads, avoid travel, alert nearby people, and contact local authorities or emergency services.
-Keep the answer concise, calm, and easy for residents.
-Do not use Markdown symbols like **, *, #, or backticks.
+Important rules:
+1. Do not perform live landslide prediction in chat.
+2. Do not say HillSafe AI cannot predict landslides. Instead say: HillSafe AI shows location-based landslide risk estimates on the app dashboard.
+3. If the user asks "am I safe", "will landslide happen", "risk in my area", "predict my location", or similar, tell them to check the dashboard/weather risk card for live risk.
+4. You may explain what NO RISK, LOW, MODERATE, and HIGH mean.
+5. You may give safety steps, evacuation advice, emergency kit advice, reporting steps, SOS guidance, and what to avoid.
+6. Do not invent live weather, coordinates, official alerts, rescue status, or local events.
+7. If the situation sounds urgent, advise moving away from slopes, riverbanks, unstable roads, and contacting local authorities or emergency services.
+8. Keep answers short, calm, and practical for residents.
+9. Do not use Markdown symbols like **, *, #, or backticks.
 
-Optional app context only if directly relevant:
+App context only if directly relevant:
 Region: {region}
-Risk Level shown in app: {risk_level}
+Risk level shown in app: {risk_level}
 Rainfall shown in app: {rainfall}
 Temperature shown in app: {temperature}
+
+Answer in {language}.
 
 User question:
 {message}
@@ -68,7 +73,7 @@ User question:
         )
         payload = {
             'contents': [{'parts': [{'text': prompt}]}],
-            'generationConfig': {'temperature': 0.35, 'maxOutputTokens': 700},
+            'generationConfig': {'temperature': 0.15, 'maxOutputTokens': 450},
         }
 
         try:
@@ -363,7 +368,7 @@ class CreateAlertView(APIView):
     """
     POST /api/alerts/create/
     Saves a new alert to the database and sends Firebase push notifications
-    to every registered DeviceToken.
+    to registered devices within 20 km of the selected region.
 
     Request body:
         region_id            (int, required)
@@ -372,6 +377,19 @@ class CreateAlertView(APIView):
         affected_population  (int, optional, default 0)
     """
     permission_classes = [permissions.IsAuthenticated]
+    alert_radius_km = 20
+
+    def _distance_km(self, lat1, lon1, lat2, lon2):
+        radius = 6371
+        d_lat = math.radians(lat2 - lat1)
+        d_lon = math.radians(lon2 - lon1)
+        a = (
+            math.sin(d_lat / 2) ** 2
+            + math.cos(math.radians(lat1))
+            * math.cos(math.radians(lat2))
+            * math.sin(d_lon / 2) ** 2
+        )
+        return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     def post(self, request):
         from accounts.models import DeviceToken
@@ -414,7 +432,23 @@ class CreateAlertView(APIView):
                 cred = firebase_admin.credentials.Certificate(cred_path)
                 firebase_admin.initialize_app(cred)
 
-            tokens = list(DeviceToken.objects.values_list('token', flat=True))
+            nearby_tokens = []
+            located_devices = DeviceToken.objects.exclude(
+                latitude__isnull=True,
+            ).exclude(
+                longitude__isnull=True,
+            )
+            for device in located_devices:
+                distance = self._distance_km(
+                    float(device.latitude),
+                    float(device.longitude),
+                    float(region.latitude),
+                    float(region.longitude),
+                )
+                if distance <= self.alert_radius_km:
+                    nearby_tokens.append(device.token)
+
+            tokens = nearby_tokens
             if tokens:
                 label = {
                     'CRITICAL': '\U0001f534 CRITICAL',
@@ -450,6 +484,8 @@ class CreateAlertView(APIView):
             'alert_id': alert.id,
             'severity': alert.severity,
             'region': region.name,
+            'alert_radius_km': self.alert_radius_km,
+            'targeted_devices': len(tokens) if 'tokens' in locals() else 0,
             'notifications_sent': notifications_sent,
             'message': 'Alert created and broadcast successfully.',
         }, status=status.HTTP_201_CREATED)

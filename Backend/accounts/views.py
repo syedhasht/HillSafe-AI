@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
 from .models import AuthorityProfile, DeviceToken, ResidentProfile
 
 
@@ -118,23 +119,46 @@ class SaveDeviceTokenView(APIView):
     POST endpoint for saving Firebase Cloud Messaging device tokens.
     
     POST /api/save-device-token/
-    Body: { 'token': 'firebase_device_token_here' }
+    Body: {
+      'token': 'firebase_device_token_here',
+      'latitude': 34.123,   optional but needed for radius alerts
+      'longitude': 73.456   optional but needed for radius alerts
+    }
     """
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
         token = request.data.get('token')
+        latitude = request.data.get('latitude')
+        longitude = request.data.get('longitude')
         
         if not token:
             return Response(
                 {'error': 'token is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        try:
+            latitude = float(latitude) if latitude is not None else None
+            longitude = float(longitude) if longitude is not None else None
+        except (TypeError, ValueError):
+            return Response(
+                {'error': 'latitude and longitude must be valid numbers when provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        defaults = {'user': request.user}
+        if latitude is not None and longitude is not None:
+            defaults.update({
+                'latitude': latitude,
+                'longitude': longitude,
+                'location_updated_at': timezone.now(),
+            })
         
         # Update or create device token for this user
         device_token, created = DeviceToken.objects.update_or_create(
             token=token,
-            defaults={'user': request.user}
+            defaults=defaults
         )
         
         action = 'registered' if created else 'updated'
@@ -143,7 +167,9 @@ class SaveDeviceTokenView(APIView):
             {
                 'status': 'success',
                 'message': f'Device token {action} successfully',
-                'token_id': device_token.id
+                'token_id': device_token.id,
+                'latitude': device_token.latitude,
+                'longitude': device_token.longitude,
             },
             status=status.HTTP_200_OK
         )

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
@@ -213,6 +214,45 @@ class ApiService {
   /// Get stored authentication token
   Future<String?> getToken() async {
     return await _storage.read(key: _tokenKey);
+  }
+
+  /// Register this device for radius-based Firebase alerts.
+  ///
+  /// The backend stores the FCM token with the latest GPS point, and authority
+  /// alerts are sent only to devices within the selected region's alert radius.
+  Future<bool> registerDeviceForAlerts({
+    required double latitude,
+    required double longitude,
+  }) async {
+    try {
+      final authToken = await getToken();
+      if (authToken == null || authToken.isEmpty) return false;
+
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
+      final fcmToken = await messaging.getToken();
+      if (fcmToken == null || fcmToken.isEmpty) return false;
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/accounts/save-device-token/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Token $authToken',
+        },
+        body: jsonEncode({
+          'token': fcmToken,
+          'latitude': latitude,
+          'longitude': longitude,
+        }),
+      ).timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) return true;
+      print('Save device token error: ${response.statusCode} - ${response.body}');
+      return false;
+    } catch (e) {
+      print('Save device token exception: $e');
+      return false;
+    }
   }
 
   /// Get stored user role

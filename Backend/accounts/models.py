@@ -151,6 +151,24 @@ class DeviceToken(models.Model):
         unique=True,
         help_text="Firebase Cloud Messaging token"
     )
+
+    latitude = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Latest known device latitude for radius-based alert targeting"
+    )
+
+    longitude = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Latest known device longitude for radius-based alert targeting"
+    )
+
+    location_updated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this device location was last updated"
+    )
     
     created_at = models.DateTimeField(
         auto_now_add=True,

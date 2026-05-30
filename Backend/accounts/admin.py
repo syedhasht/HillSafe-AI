@@ -43,10 +43,10 @@ class AuthorityProfileAdmin(admin.ModelAdmin):
 @admin.register(DeviceToken)
 class DeviceTokenAdmin(admin.ModelAdmin):
     """Admin interface for Firebase device tokens."""
-    list_display = ['id', 'user', 'get_token_preview', 'created_at']
-    list_filter = ['created_at']
+    list_display = ['id', 'user', 'latitude', 'longitude', 'location_updated_at', 'get_token_preview', 'created_at']
+    list_filter = ['created_at', 'location_updated_at']
     search_fields = ['token', 'user__username']
-    readonly_fields = ['created_at']
+    readonly_fields = ['created_at', 'location_updated_at']
     
     def get_token_preview(self, obj):
         """Show first 40 characters of token"""

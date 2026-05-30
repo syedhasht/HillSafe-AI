@@ -1,0 +1,1034 @@
+HillSafe AI - Complete Project Documentation
+============================================
+
+1. Project Overview
+-------------------
+
+HillSafe AI is a mobile and web-backed early warning system for landslide and weather-related hazard monitoring. The system is designed around two user groups:
+
+1. Community users who need location-based risk awareness, safety messages, SOS support, incident reporting, and safe check-ins.
+2. Authority users who need monitored-region visibility, alerts, reports, SOS tracking, and user safety status.
+
+The main idea is simple:
+
+The mobile app collects the user's current GPS location. The backend decides whether the user is inside or near a monitored hazard zone. If the user is outside monitored danger areas, the system returns NO RISK. If the user is inside or near a monitored zone, the backend enriches the location using weather and terrain APIs, runs the machine learning risk pipeline, stores useful data in the database, and returns a risk score, risk level, and safety message.
+
+The system is deployed with:
+
+- Flutter Android app for users and authority users
+- Django REST API backend
+- Neon PostgreSQL database
+- Render web service deployment
+- Firebase Cloud Messaging for push notifications
+- Gemini API for the safety assistant
+
+Production backend:
+
+https://hillsafe-ai.onrender.com
+
+Production API base:
+
+https://hillsafe-ai.onrender.com/api
+
+
+2. Main Objectives
+------------------
+
+The project provides:
+
+- Live location-based hazard risk prediction
+- Region-based monitoring for known hazard-prone places
+- Risk cards and maps for community users
+- Authority dashboard for response teams
+- Safety check-ins from community users
+- SOS requests with location
+- Incident reports with optional evidence
+- Push alerts from authorities
+- Radius-based alert targeting
+- AI safety assistant for guidance
+- Database-backed terrain enrichment
+- External weather and terrain API integration
+
+
+3. Technology Stack
+-------------------
+
+Frontend:
+
+- Flutter
+- Dart
+- Provider state management
+- Firebase Messaging
+- Geolocator
+- Flutter Map / map-related packages
+- HTTP client through the app service layer
+
+Backend:
+
+- Python
+- Django 5
+- Django REST Framework
+- Gunicorn
+- WhiteNoise
+- django-cors-headers
+
+Database:
+
+- PostgreSQL
+- Neon hosted database in production
+
+Machine Learning:
+
+- scikit-learn
+- TensorFlow / Keras
+- NumPy
+- pandas
+- SciPy
+- joblib
+
+External Services:
+
+- OpenWeather for live weather
+- OpenTopoData for elevation data
+- SoilGrids for soil composition
+- Firebase Cloud Messaging for notifications
+- Firebase Admin SDK on backend
+- Gemini API for chatbot responses
+- Render for backend hosting
+- Neon for PostgreSQL hosting
+
+
+4. Repository Structure
+-----------------------
+
+Main folders:
+
+Backend/
+  Django backend, API endpoints, ML pipeline, models, migrations, and deployment files.
+
+Frontend App/
+  Flutter mobile application.
+
+Datasets/
+  Project datasets, training material, notebooks, or source files used during development.
+
+Weights/
+  Backup/source copies of trained model artifacts. Deployment uses files inside Backend/ml_engine/models.
+
+Document.txt
+  Full professional project documentation.
+
+README.md
+  Short GitHub overview and setup guide.
+
+
+5. Backend Structure
+--------------------
+
+Backend/hillsafe_core/
+  Main Django project settings, URL routing, WSGI entry point, and deployment configuration.
+
+Backend/accounts/
+  User model, role handling, authority/resident profiles, device token storage, login/account endpoints, and Firebase token location tracking.
+
+Backend/api/
+  Main application API endpoints used by the Flutter app. It includes region listing, alerts, analytics, chatbot, alert creation, and dashboard-related APIs.
+
+Backend/ml_engine/
+  Machine learning predictor, location-risk API, model loading, weather/terrain enrichment, and shared region risk pipeline.
+
+Backend/regions/
+  Region and TerrainSample database models. Regions represent monitored hazard areas. TerrainSample stores fetched terrain data for coordinates.
+
+Backend/reports/
+  Incident reports, safety check-ins, and SOS request handling.
+
+Backend/alerts/
+  Alert model and alert persistence.
+
+Backend/data_ingestion/
+  Manual ingestion endpoint for refreshing region risk values and optionally generating alerts.
+
+Backend/safety/
+  Safety contacts and saved safety tip related models/features.
+
+Backend/ml_engine/models/
+  Deployed ML model artifacts:
+
+  - landslide_rf_model.pkl
+  - weather_scaler.pkl
+  - rainfall_lstm.h5
+
+
+6. Frontend Structure
+---------------------
+
+Frontend App/lib/main.dart
+  Flutter app entry point, routes, providers, and global app setup.
+
+Frontend App/lib/services/api_service.dart
+  Central API service. All backend calls should go through this file. It handles login, regions, predictions, alerts, reports, SOS, safety check-ins, device token registration, and chatbot requests.
+
+Frontend App/lib/providers/safety_controller.dart
+  App-level safety state and background risk refresh logic.
+
+Frontend App/lib/widgets/weather_risk_widget.dart
+  Main live weather and risk card. It uses the location-risk endpoint and should show the user's actual current location/weather, not only the nearest monitored region.
+
+Frontend App/lib/screens/community/community_dashboard.dart
+  Community home dashboard with location/risk, monitored regions, safety check-in, SOS, and region cards.
+
+Frontend App/lib/screens/community/risk_map_screen.dart
+  Community map view of monitored areas.
+
+Frontend App/lib/screens/maps/authority_map_screen.dart
+  Authority map view.
+
+Frontend App/lib/screens/auth/authority_dashboard.dart
+  Authority dashboard.
+
+Frontend App/lib/screens/alerts/alert_management_screen.dart
+  Authority alert creation and management.
+
+Frontend App/lib/screens/alerts/alert_feed_screen.dart
+  User alert feed.
+
+Frontend App/lib/screens/assistant/hillsafe_assistant_screen.dart
+  Chatbot UI connected to the backend Gemini endpoint.
+
+Frontend App/lib/screens/safety/
+  Safety guidelines, incident reporting, and related screens.
+
+
+7. User Roles
+-------------
+
+Community User:
+
+- Logs in through the mobile app
+- Shares location permission
+- Gets live location-based risk
+- Views monitored regions
+- Receives alerts
+- Marks themselves safe
+- Sends SOS
+- Submits incident reports
+- Uses the safety assistant
+
+Authority User:
+
+- Logs in to authority dashboard
+- Views monitored regions and maps
+- Creates alerts
+- Reviews incident reports
+- Reviews safety check-ins
+- Reviews SOS requests
+- Monitors region risk levels
+
+
+8. Database Overview
+--------------------
+
+Main production database:
+
+- Neon PostgreSQL
+
+Important tables/models:
+
+accounts_user
+  Stores users, roles, phone numbers, safety status, and authentication information.
+
+accounts_authorityprofile
+  Authority user profile details.
+
+accounts_residentprofile
+  Community/resident profile details.
+
+accounts_devicetoken
+  Stores Firebase device tokens and latest known device coordinates. These coordinates are used for radius-based alert targeting.
+
+regions_region
+  Stores monitored hazard regions. Each region has name, district, coordinates, risk score, and hazard-zone radius data.
+
+regions_terrainsample
+  Stores terrain data fetched for rounded coordinates. This avoids repeatedly calling free public terrain APIs.
+
+alerts_alert
+  Stores authority-created alerts.
+
+reports_incidentreport
+  Stores community incident reports.
+
+reports_safetystatus
+  Stores safe check-ins with coordinates, area name, region, and timestamp.
+
+reports_sosrequest
+  Stores SOS requests sent by users.
+
+safety_emergencycontact
+  Stores emergency contact information.
+
+safety_savedsafetytip
+  Stores saved safety tips.
+
+
+9. Monitored Region Model
+-------------------------
+
+The Region model represents known monitored hazard areas such as Murree, Swat, Kohistan, Hunza, Skardu, and related northern Pakistan regions.
+
+Important fields include:
+
+- name
+- district
+- latitude
+- longitude
+- current_risk_score
+- current_temperature
+- current_rainfall
+- current_humidity
+- last_updated
+- is_critical_zone
+- danger_radius_km
+- warning_radius_km
+
+The hazard radii are important because the app should not blindly classify every flat area as risky. If a user is far from monitored hazard zones, the backend can return NO RISK directly.
+
+
+10. TerrainSample Model
+-----------------------
+
+TerrainSample stores terrain and soil data for a coordinate. The backend rounds latitude and longitude to a stable key and stores fetched data.
+
+Stored values include:
+
+- latitude_key
+- longitude_key
+- requested_latitude
+- requested_longitude
+- elevation_m
+- slope_degrees
+- elevation_code
+- slope_code
+- soil_type
+- soil_code
+- clay_percent
+- sand_percent
+- silt_percent
+- lithology_type
+- lithology_code
+- ndvi_code
+- ndwi_code
+- data_quality
+- fetch_errors
+
+Why this exists:
+
+Free public APIs have rate limits. Storing the result in the database reduces repeated calls and makes future predictions faster for nearby coordinates.
+
+
+11. Main Prediction Pipeline
+----------------------------
+
+Primary endpoint:
+
+POST /api/predict/location-risk/
+
+Input:
+
+{
+  "latitude": 34.909,
+  "longitude": 73.649
+}
+
+High-level flow:
+
+1. Flutter gets the user's GPS coordinates.
+2. Flutter sends latitude and longitude to the backend.
+3. Backend finds the nearest monitored region.
+4. Backend checks if the user is:
+   - inside_hazard_zone
+   - near_hazard_zone
+   - outside_monitored_hazard_zone
+5. If outside monitored zone, backend returns NO RISK.
+6. If inside or near monitored zone, backend fetches live weather.
+7. Backend checks TerrainSample table for existing terrain data.
+8. If terrain data is missing, backend fetches OpenTopoData and SoilGrids.
+9. Backend converts raw data into model feature codes.
+10. Random Forest model predicts risk score.
+11. Backend returns risk score, risk level, safety message, nearest region, weather, terrain, and input features.
+
+The prediction logic belongs in the backend, not in Flutter. Flutter should display results and collect device/user input only.
+
+
+12. Hazard Zone Gating
+----------------------
+
+Hazard zone gating prevents wrong risk warnings in flat or unrelated areas.
+
+Zone meanings:
+
+inside_hazard_zone
+  The user is inside the direct danger radius of a monitored region.
+
+near_hazard_zone
+  The user is inside the warning radius but outside the direct danger radius.
+
+outside_monitored_hazard_zone
+  The user is far from monitored hazard regions. The system should return NO RISK directly.
+
+This design matches the real use case:
+
+If a region is critical and the user is near that region, the user gets an alert or risk message. If the user is in a plain/safe area far away, the app should not show moderate risk only because generic model features happened to produce it.
+
+
+13. Risk Levels
+---------------
+
+Risk score is a decimal probability.
+
+Examples:
+
+- 0.10 means 10%
+- 0.30 means 30%
+- 0.85 means 85%
+
+Displayed risk levels:
+
+NO RISK:
+  Below 15%, or outside monitored hazard zones.
+
+LOW:
+  Around 15% to below 30%.
+
+MODERATE:
+  Around 30% to below 70%.
+
+HIGH:
+  Around 70% and above.
+
+The frontend should display percentages by multiplying risk_score by 100.
+
+
+14. Safety Messages
+-------------------
+
+The backend returns one main safety message per prediction. This avoids flooding the user with many different messages.
+
+Messages are based on:
+
+- zone status
+- risk level
+- ML score
+
+Examples:
+
+outside_monitored_hazard_zone:
+  No monitored hazard region is close to your current position. Continue normal activity, but stay aware of weather updates if you are travelling.
+
+near_hazard_zone:
+  You are near a monitored hazard zone, but not inside the immediate danger area. Stay updated and avoid unnecessary travel toward the risky region.
+
+inside_hazard_zone:
+  You are currently inside a high-alert hazard zone. Stay cautious, avoid risky movement, and follow official safety guidance immediately.
+
+HIGH:
+  A high hazard risk has been detected near your location. Move away from dangerous slopes, riverbanks, and unstable roads as soon as it is safe to do so.
+
+
+15. Weather Data
+----------------
+
+Weather provider:
+
+- OpenWeather
+
+Backend environment variables:
+
+- OPENWEATHER_API_KEY
+- WEATHER_API_KEY
+
+Fetched values:
+
+- temperature
+- rainfall
+- snow as precipitation if present
+- humidity
+
+The live weather card should use the user's exact coordinates. It should not show only a nearest major region name. The nearest monitored region is useful for hazard-zone logic, but the weather card should represent the current user location.
+
+
+16. Elevation and Slope Data
+----------------------------
+
+Provider:
+
+- OpenTopoData
+
+Dataset:
+
+- srtm30m
+
+Endpoint:
+
+https://api.opentopodata.org/v1/srtm30m
+
+Method:
+
+The backend requests elevation for five nearby points:
+
+- center
+- north
+- south
+- east
+- west
+
+From these values it calculates approximate slope. It then stores elevation and slope in TerrainSample.
+
+Why this matters:
+
+Slope and elevation are important landslide factors. A flat area should generally have lower hazard contribution than a steep mountainous area.
+
+
+17. Soil Data
+-------------
+
+Provider:
+
+- SoilGrids
+
+Endpoint:
+
+https://rest.isric.org/soilgrids/v2.0/properties/query
+
+Fetched properties:
+
+- clay
+- sand
+- silt
+
+Depths:
+
+- 0-5cm
+- 5-15cm
+
+The backend classifies soil into a simple soil type/code and stores it in TerrainSample.
+
+
+18. ML Model
+------------
+
+Main deployed model:
+
+Backend/ml_engine/models/landslide_rf_model.pkl
+
+Scaler:
+
+Backend/ml_engine/models/weather_scaler.pkl
+
+LSTM model:
+
+Backend/ml_engine/models/rainfall_lstm.h5
+
+Main predictor file:
+
+Backend/ml_engine/predictor.py
+
+Shared region pipeline:
+
+Backend/ml_engine/risk_pipeline.py
+
+The primary deployed landslide prediction uses the Random Forest model. The LSTM file exists and may be used for rainfall trend work, but it is lazy-loaded because Render free instances have limited memory.
+
+Model status endpoint:
+
+GET /api/predict/status/
+
+Expected output:
+
+- rf_model_loaded: true
+- scaler_loaded: true
+- status: ready
+- lstm_model_loaded may be false until used
+
+
+19. ML Feature Handling
+-----------------------
+
+The Random Forest model expects coded feature inputs. Current important derived inputs include:
+
+- precipitation from OpenWeather
+- elevation from OpenTopoData
+- slope from OpenTopoData-derived slope
+- lithology currently defaulted
+- NDVI currently defaulted
+- NDWI currently defaulted
+
+Known limitation:
+
+The current model still needs stronger real GIS enrichment for lithology, NDVI, and NDWI. The project has improved beyond dummy values by adding weather, elevation, slope, and soil storage, but full scientific accuracy needs better official GIS raster/vector datasets and model retraining.
+
+
+20. Region Risk Refresh
+-----------------------
+
+Endpoint:
+
+GET /api/regions/
+
+This endpoint returns monitored regions. It also refreshes stale region risk values through the ML pipeline. This prevents old hardcoded 10% values from staying forever.
+
+Manual refresh endpoint:
+
+POST /api/ingest/trigger/
+
+This endpoint recalculates region risk and can generate alerts when needed. It is useful for cron jobs or manual maintenance, but the app should not require the user to run it manually every time.
+
+How region refresh works:
+
+1. Backend checks Region.last_updated.
+2. If region data is stale, it calls the shared risk pipeline.
+3. It fetches weather and terrain.
+4. It predicts risk.
+5. It updates current_risk_score and weather fields.
+6. Flutter receives fresh region data.
+
+
+21. Alerts and Push Notifications
+---------------------------------
+
+Authority users can create alerts from the dashboard.
+
+Alert creation endpoint:
+
+POST /api/alerts/create/
+
+Alerts are saved in the database and can be shown in the app's alert feed.
+
+Push notifications use Firebase Cloud Messaging.
+
+Important behavior:
+
+Only users whose latest stored device coordinates are within 20 km of the selected alert region should receive the push notification.
+
+Device location registration endpoint:
+
+POST /api/accounts/save-device-token/
+
+The Flutter app sends:
+
+- Firebase token
+- device type
+- latitude
+- longitude
+
+The backend stores the token and latest coordinates in accounts_devicetoken. When an authority creates an alert for a region, the backend calculates distance between the selected region and device coordinates. Only devices inside the radius are targeted.
+
+Important limitation:
+
+If a user never opened the app, denied notification permission, or denied location permission, that device may not have a usable token/location pair for targeted push delivery.
+
+
+22. Safety Check-In Flow
+------------------------
+
+Community users can mark themselves safe.
+
+Endpoint:
+
+POST /api/reports/mark-safe/
+
+Stored table:
+
+reports_safetystatus
+
+Stored data includes:
+
+- user
+- region if available
+- latitude
+- longitude
+- area name
+- safe status
+- timestamp
+
+The app should prevent repeated safe check-ins too frequently. The intended cooldown is around 30 minutes. After the cooldown, the button should unlock so the user can check in again.
+
+Authority users should be able to see recent safe check-ins, coordinates, area names, and timestamps.
+
+
+23. SOS Flow
+------------
+
+Community users can send SOS from the app.
+
+Stored table:
+
+reports_sosrequest
+
+The SOS flow should store:
+
+- user
+- coordinates
+- area/location
+- timestamp
+- status
+- optional message/context
+
+Authority dashboard should show active SOS requests so response teams can identify who needs help and where.
+
+
+24. Incident Reporting
+----------------------
+
+Community users can submit incident reports.
+
+Main purpose:
+
+- report landslide signs
+- report blocked roads
+- report flooding
+- report damage
+- share coordinates and optional evidence
+
+Stored table:
+
+reports_incidentreport
+
+Authority users can view submitted reports for response and monitoring.
+
+
+25. AI Safety Assistant
+-----------------------
+
+Endpoint:
+
+POST /api/chatbot/
+
+Provider:
+
+- Gemini API
+
+The chatbot should not pretend to perform live landslide prediction inside chat. For live risk questions, it should guide the user to the dashboard or weather/risk card.
+
+Correct chatbot behavior:
+
+- Give safety guidance
+- Explain what to do during landslide/flood/weather risk
+- Encourage using dashboard for live risk status
+- Avoid claiming it can independently predict live risk
+- Avoid overconfident emergency claims
+
+API key:
+
+- GEMINI_API_KEY in backend environment variables
+
+The Gemini key must stay in Render environment variables and should not be committed.
+
+
+26. Key Backend Endpoints
+-------------------------
+
+Base:
+
+https://hillsafe-ai.onrender.com/api
+
+Important endpoints:
+
+GET /
+  API index.
+
+POST /login/
+  User login.
+
+GET /regions/
+  List monitored regions and refresh stale risk scores.
+
+GET /alerts/
+  List alerts.
+
+POST /alerts/create/
+  Authority creates alert and sends radius-targeted push notifications.
+
+GET /analytics/?period=7days
+  Authority analytics.
+
+GET /sensor-data/
+  Aggregated region/sensor style data.
+
+GET /districts/
+  District list.
+
+POST /predict/location-risk/
+  Main GPS-based prediction endpoint.
+
+POST /predict/risk/
+  Direct ML input endpoint for manual feature testing.
+
+GET /predict/status/
+  ML model loading status.
+
+POST /ingest/trigger/
+  Manual region risk ingestion/refresh.
+
+POST /reports/submit/
+  Submit incident report.
+
+POST /reports/mark-safe/
+  Mark current user safe.
+
+POST /reports/sos/
+  Send SOS request.
+
+POST /accounts/save-device-token/
+  Save Firebase device token and latest coordinates.
+
+POST /chatbot/
+  Ask AI safety assistant.
+
+
+27. Deployment on Render
+------------------------
+
+Render service:
+
+HillSafe-AI
+
+Root directory:
+
+Backend
+
+Build command:
+
+pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python create_superuser.py && python seed_regions.py
+
+Start command:
+
+gunicorn hillsafe_core.wsgi:application
+
+Important production environment variables:
+
+- SECRET_KEY
+- DEBUG
+- ALLOWED_HOSTS
+- CORS_ALLOWED_ORIGINS
+- DB_HOST
+- DB_NAME
+- DB_USER
+- DB_PASSWORD
+- DB_PORT
+- OPENWEATHER_API_KEY
+- WEATHER_API_KEY
+- GEMINI_API_KEY
+- SKLEARN_MODEL_PATH
+- LSTM_MODEL_PATH
+- PYTHON_VERSION
+
+Secret file:
+
+- serviceAccountKey.json for Firebase Admin SDK
+
+Render free limitation:
+
+The free instance can spin down after inactivity. The first request after sleep may be delayed. This does not mean the project is broken.
+
+
+28. Neon Database
+-----------------
+
+Production database:
+
+- Neon PostgreSQL
+
+The backend connects using Render environment variables.
+
+To inspect data:
+
+1. Open Neon dashboard.
+2. Select the production branch.
+3. Go to Tables or SQL Editor.
+4. Use SQL queries to inspect tables.
+
+Example queries:
+
+SELECT id, username, phone_number, role, is_safe, safe_status_updated_at
+FROM accounts_user
+ORDER BY id;
+
+SELECT *
+FROM reports_safetystatus
+ORDER BY created_at DESC
+LIMIT 20;
+
+SELECT *
+FROM reports_sosrequest
+ORDER BY created_at DESC
+LIMIT 20;
+
+SELECT id, name, district, current_risk_score, last_updated
+FROM regions_region
+ORDER BY id;
+
+
+29. Firebase Notifications
+--------------------------
+
+Firebase is used for push notifications.
+
+Frontend:
+
+- Gets FCM token from Firebase Messaging.
+- Sends token and latest coordinates to backend.
+
+Backend:
+
+- Uses Firebase Admin SDK.
+- Reads serviceAccountKey.json.
+- Sends notification to selected device tokens.
+
+Radius behavior:
+
+When an authority selects a region and creates an alert, only devices within 20 km of that region center are targeted for push notification.
+
+
+30. Local Development
+---------------------
+
+Backend setup:
+
+cd Backend
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+
+Flutter setup:
+
+cd "Frontend App"
+flutter pub get
+flutter run
+
+Build APK:
+
+cd "Frontend App"
+flutter build apk --release
+
+APK output:
+
+Frontend App/build/app/outputs/flutter-apk/app-release.apk
+
+
+31. Testing Commands
+--------------------
+
+Check backend model status:
+
+Invoke-RestMethod "https://hillsafe-ai.onrender.com/api/predict/status/"
+
+Test location prediction:
+
+$body = @{
+  latitude = 34.909
+  longitude = 73.649
+} | ConvertTo-Json
+
+$response = Invoke-RestMethod `
+  -Uri "https://hillsafe-ai.onrender.com/api/predict/location-risk/" `
+  -Method Post `
+  -Body $body `
+  -ContentType "application/json"
+
+$response | ConvertTo-Json -Depth 10
+
+Test regions:
+
+Invoke-RestMethod "https://hillsafe-ai.onrender.com/api/regions/"
+
+Manual ingestion:
+
+Invoke-RestMethod `
+  -Uri "https://hillsafe-ai.onrender.com/api/ingest/trigger/" `
+  -Method Post
+
+
+32. Evaluation Feature List
+---------------------------
+
+Core features ready to demonstrate:
+
+- Flutter mobile app login
+- Community dashboard
+- Live weather and risk card
+- GPS-based backend prediction
+- Hazard-zone gating
+- Risk levels and safety messages
+- Monitored regions list
+- Region map
+- Authority dashboard
+- Alert creation
+- Radius-targeted push notification logic
+- Safety check-in
+- SOS request
+- Incident reporting
+- AI safety assistant
+- Neon database storage
+- Render deployment
+- ML model status endpoint
+- Terrain data persistence
+
+
+33. Known Limitations
+---------------------
+
+The system is functional, but these limitations should be understood during evaluation:
+
+1. Lithology, NDVI, and NDWI are still defaulted until real GIS layers are integrated.
+2. Soil data is stored, but the current Random Forest feature array may not directly use soil depending on the trained model schema.
+3. Terrain slope is approximated from OpenTopoData point elevations, not from a local high-resolution GIS raster.
+4. Render free hosting can sleep and cause slow first requests.
+5. Public APIs have rate limits.
+6. The LSTM model exists but is not the primary live risk path.
+7. Region analytics are partly derived from current region risk and may need historical tables for advanced trend analysis.
+8. The trained model quality depends on the original training dataset and feature engineering.
+
+
+34. Recommended Future Improvements
+-----------------------------------
+
+For better scientific accuracy:
+
+- Add official GIS raster layers for slope, aspect, curvature, NDVI, NDWI, lithology, land cover, and drainage.
+- Store raster-derived values in TerrainSample.
+- Retrain the model using the exact same feature set used in production.
+- Add a historical prediction table for trend analytics.
+- Add admin tools for editing hazard radius per region.
+- Add stronger authority verification.
+- Add offline emergency guidance inside Flutter.
+- Add better map overlays for danger and warning radii.
+- Add audit logs for alert creation and SOS handling.
+
+
+35. Security and Secrets
+------------------------
+
+Never commit:
+
+- .env
+- database passwords
+- Firebase service account JSON
+- Gemini API key
+- OpenWeather API key
+- Render deploy hook
+
+Keep production secrets in Render environment variables or Render secret files.
+
+
+36. Summary
+-----------
+
+HillSafe AI is a complete disaster-risk awareness system with a Flutter app, Django backend, ML prediction pipeline, Neon database, Render deployment, Firebase push notifications, and Gemini safety assistant.
+
+The most important design decision is that prediction happens in the backend. The frontend collects location and displays results. The backend decides if the user is inside a monitored hazard zone, fetches live weather and terrain data, runs the model, stores useful samples, and returns a clear risk level with one safety message.
+
+This makes the system easier to maintain, easier to deploy, and more suitable for real-world evaluation.

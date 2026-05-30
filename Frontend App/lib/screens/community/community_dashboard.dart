@@ -115,6 +115,11 @@ class _CommunityDashboardState extends State<CommunityDashboard>
       final position = await _apiService.getCurrentPosition();
 
       if (position != null) {
+        unawaited(_apiService.registerDeviceForAlerts(
+          latitude: position.latitude,
+          longitude: position.longitude,
+        ));
+
         // Find nearest region (simplified logic matching WeatherRiskWidget)
         final nearest =
             _findNearestRegion(position.latitude, position.longitude, _regions);
