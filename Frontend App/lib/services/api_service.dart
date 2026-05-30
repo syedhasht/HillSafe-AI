@@ -16,7 +16,8 @@ class ApiService {
   // For physical devices, use your computer's IP address (e.g., 192.168.1.100:8000)
   // For production: replace with your Render backend URL
   // For local dev: use your computer's IP or 10.0.2.2 (Android emulator)
-  static const String baseUrl = 'http://192.168.100.217:8001/api';
+  // For local dev: static const String baseUrl = 'http://192.168.100.217:8001/api';
+  static const String baseUrl = 'https://hillsafe-ai.onrender.com/api';
 
   // Secure storage for authentication token
   final _storage = const FlutterSecureStorage();
