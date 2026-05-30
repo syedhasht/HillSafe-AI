@@ -20,6 +20,9 @@ class ApiService {
   // For local dev: static const String baseUrl = 'http://192.168.100.217:8001/api';
   static const String baseUrl = 'https://hillsafe-ai.onrender.com/api';
 
+  // Shared persistent HTTP client for TCP connection pooling & keep-alive
+  static final http.Client _client = http.Client();
+
   // Secure storage for authentication token
   final _storage = const FlutterSecureStorage();
 
@@ -66,11 +69,11 @@ class ApiService {
         body['password'] = password;
       }
 
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('$baseUrl/login/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -115,7 +118,7 @@ class ApiService {
     String email = '',
   }) async {
     try {
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('$baseUrl/signup/authority/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -123,7 +126,7 @@ class ApiService {
           'password': password,
           'email': email,
         }),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -166,13 +169,13 @@ class ApiService {
 
     if (token != null) {
       try {
-        await http.post(
+        await _client.post(
           Uri.parse('$baseUrl/logout/'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Token $token',
           },
-        );
+        ).timeout(const Duration(seconds: 15));
       } catch (e) {
         print('Logout exception: $e');
       }
@@ -233,7 +236,7 @@ class ApiService {
       final fcmToken = await messaging.getToken();
       if (fcmToken == null || fcmToken.isEmpty) return false;
 
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('$baseUrl/accounts/save-device-token/'),
         headers: {
           'Content-Type': 'application/json',
@@ -244,7 +247,7 @@ class ApiService {
           'latitude': latitude,
           'longitude': longitude,
         }),
-      ).timeout(const Duration(seconds: 12));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) return true;
       print('Save device token error: ${response.statusCode} - ${response.body}');
@@ -282,13 +285,13 @@ class ApiService {
       final token = await getToken();
       if (token == null) return null;
 
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse('$baseUrl/accounts/profile/'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Token $token',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -327,7 +330,7 @@ class ApiService {
       final token = await getToken();
       if (token == null) return null;
 
-      final response = await http.patch(
+      final response = await _client.patch(
         Uri.parse('$baseUrl/accounts/profile/'),
         headers: {
           'Content-Type': 'application/json',
@@ -339,7 +342,7 @@ class ApiService {
           if (phoneNumber != null) 'phone_number': phoneNumber,
           if (language != null) 'language': language,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -372,7 +375,7 @@ class ApiService {
       final token = await getToken();
       if (token == null) return false;
 
-      final response = await http.patch(
+      final response = await _client.patch(
         Uri.parse('$baseUrl/accounts/profile/'),
         headers: {
           'Content-Type': 'application/json',
@@ -381,7 +384,7 @@ class ApiService {
         body: jsonEncode({
           'dark_mode': isDark,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -415,10 +418,10 @@ class ApiService {
   /// Returns map with sensor data or empty map on error
   Future<Map<String, dynamic>> fetchSensorData() async {
     try {
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse('$baseUrl/sensor-data/'),
         headers: {'Content-Type': 'application/json'},
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -441,10 +444,10 @@ class ApiService {
   /// Returns list of district names or empty list on error
   Future<List<String>> fetchDistricts() async {
     try {
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse('$baseUrl/districts/'),
         headers: {'Content-Type': 'application/json'},
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -467,10 +470,10 @@ class ApiService {
   /// Returns safety status data map or empty map on error
   Future<Map<String, dynamic>> fetchSafetyStatus() async {
     try {
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse('$baseUrl/safety-status/'),
         headers: {'Content-Type': 'application/json'},
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -501,7 +504,7 @@ class ApiService {
     bool isSafe = true,
   }) async {
     try {
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('$baseUrl/mark-safe/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -509,7 +512,7 @@ class ApiService {
           'region_id': regionId,
           'is_safe': isSafe,
         }),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -539,10 +542,10 @@ class ApiService {
         headers['Authorization'] = 'Token $token';
       }
 
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse('$baseUrl/alerts/'),
         headers: headers,
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -598,10 +601,10 @@ class ApiService {
         ? Uri.parse('$baseUrl/regions/')
         : Uri.parse('$baseUrl/regions/?refresh=false');
 
-    return http.get(
+    return _client.get(
       uri,
       headers: {'Content-Type': 'application/json'},
-    ).timeout(Duration(seconds: refresh ? 12 : 8));
+    ).timeout(Duration(seconds: refresh ? 60 : 30));
   }
 
   /// Predict Risk Function
@@ -616,7 +619,7 @@ class ApiService {
     required String lithology,
   }) async {
     try {
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('$baseUrl/predict/risk/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -625,7 +628,7 @@ class ApiService {
           'soil': soil,
           'lithology': lithology,
         }),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -648,14 +651,14 @@ class ApiService {
     required double longitude,
   }) async {
     try {
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('$baseUrl/predict/location-risk/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'latitude': latitude,
           'longitude': longitude,
         }),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -683,7 +686,7 @@ class ApiService {
       final token = await getToken();
       if (token == null) return null;
 
-      final response = await http
+      final response = await _client
           .post(
             Uri.parse('$baseUrl/reports/sos/'),
             headers: {
@@ -700,7 +703,7 @@ class ApiService {
               'message': message,
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -719,13 +722,13 @@ class ApiService {
       final token = await getToken();
       if (token == null) return {};
 
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse('$baseUrl/reports/sos/status/'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Token $token',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -744,13 +747,13 @@ class ApiService {
       final token = await getToken();
       if (token == null) return [];
 
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse('$baseUrl/reports/sos/list/'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Token $token',
         },
-      ).timeout(const Duration(seconds: 12));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -770,13 +773,13 @@ class ApiService {
       final token = await getToken();
       if (token == null) return [];
 
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse('$baseUrl/safety/saved-tips/'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Token $token',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -800,7 +803,7 @@ class ApiService {
       final token = await getToken();
       if (token == null) return false;
 
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('$baseUrl/safety/saved-tips/'),
         headers: {
           'Content-Type': 'application/json',
@@ -811,7 +814,7 @@ class ApiService {
           'tip_title': title,
           'tip_description': description,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return true;
@@ -830,13 +833,13 @@ class ApiService {
       final token = await getToken();
       if (token == null) return false;
 
-      final response = await http.delete(
+      final response = await _client.delete(
         Uri.parse('$baseUrl/safety/saved-tips/$tipId/'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Token $token',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 204 || response.statusCode == 200) {
         return true;
@@ -852,10 +855,10 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchEmergencyContacts() async {
     try {
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse('$baseUrl/safety/emergency-contacts/'),
         headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -879,7 +882,7 @@ class ApiService {
     String language = 'English',
   }) async {
     try {
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('$baseUrl/chatbot/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -890,7 +893,7 @@ class ApiService {
           'temperature': temperature ?? 'Unknown',
           'language': language,
         }),
-      ).timeout(const Duration(seconds: 14));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -920,13 +923,13 @@ class ApiService {
         return null;
       }
 
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('$baseUrl/ingest/trigger/'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Token $token',
         },
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -1003,7 +1006,7 @@ class ApiService {
       }
 
       print('Sending request...');
-      final streamedResponse = await request.send();
+      final streamedResponse = await _client.send(request).timeout(const Duration(seconds: 45));
       final response = await http.Response.fromStream(streamedResponse);
 
       print('Response status code: ${response.statusCode}');
@@ -1046,13 +1049,13 @@ class ApiService {
 
       if (token == null) return {};
 
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse('$baseUrl/reports/mark-safe/?region_id=$regionId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Token $token',
         },
-      );
+      ).timeout(const Duration(seconds: 30));
 
       print(
           'Check safety status response: ${response.statusCode} - ${response.body}');
@@ -1088,7 +1091,7 @@ class ApiService {
 
       print('Marking safe for region: $regionId');
 
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('$baseUrl/reports/mark-safe/'),
         headers: {
           'Content-Type': 'application/json',
@@ -1100,7 +1103,7 @@ class ApiService {
           'longitude': longitude,
           'area_name': areaName,
         }),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       print('Mark safe response: ${response.statusCode} - ${response.body}');
 
@@ -1131,13 +1134,13 @@ class ApiService {
         return null;
       }
 
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse('$baseUrl/reports/stats/$regionId/'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Token $token',
         },
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -1174,10 +1177,10 @@ class ApiService {
         url += '&force=true';
       }
 
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -1203,7 +1206,7 @@ class ApiService {
       final url =
           'https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,relative_humidity_2m,rain,snowfall,weather_code,is_day&timezone=auto&forecast_days=1';
 
-      final response = await http.get(Uri.parse(url));
+      final response = await _client.get(Uri.parse(url)).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -1248,10 +1251,10 @@ class ApiService {
         url += '?region_id=$regionId';
       }
 
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse(url),
         headers: headers,
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -1277,13 +1280,13 @@ class ApiService {
       final url =
           'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1';
 
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse(url),
         headers: {
           'User-Agent': 'HillSafeAI/1.0 (flutter_app)',
           'Accept-Language': 'en',
         },
-      ).timeout(const Duration(seconds: 8));
+      ).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -1357,7 +1360,7 @@ class ApiService {
     bool sendToAll = false,
   }) async {
     final token = await getToken();
-    final response = await http.post(
+    final response = await _client.post(
       Uri.parse('$baseUrl/alerts/create/'),
       headers: {
         'Content-Type': 'application/json',
@@ -1370,7 +1373,7 @@ class ApiService {
         'affected_population': affectedPopulation,
         'send_to_all': sendToAll,
       }),
-    ).timeout(const Duration(seconds: 15));
+    ).timeout(const Duration(seconds: 30));
 
     if (response.statusCode == 201) {
       return jsonDecode(response.body) as Map<String, dynamic>;
