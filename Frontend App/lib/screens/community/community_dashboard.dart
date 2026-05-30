@@ -959,130 +959,136 @@ class _CommunityDashboardState extends State<CommunityDashboard>
     return Scaffold(
       // Light warm-white scaffold background
       backgroundColor: AppTheme.background,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _refreshData,
-          color: AppTheme.accentTeal,
-          child: CustomScrollView(
-            slivers: [
-              // App header row — white surface with dark text
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spacingMedium,
-                    vertical: 12.0,
-                  ),
-                  child: Row(
-                    children: [
-                      // Logo + Title
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: AppTheme.surface,
-                                shape: BoxShape.circle,
-                                boxShadow: AppTheme.cardShadow,
-                              ),
-                              padding: const EdgeInsets.all(4),
-                              child: ClipOval(
-                                child: Image.asset(
-                                  'assets/images/Logo.jpeg',
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                langProvider.appName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineSmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 19,
-                                      letterSpacing: -0.5,
-                                    ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
+      body: RefreshIndicator(
+        onRefresh: _refreshData,
+        color: AppTheme.accentTeal,
+        child: CustomScrollView(
+          slivers: [
+            // App header row — white surface with dark text
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppTheme.spacingMedium,
+                  MediaQuery.of(context).padding.top + 12.0, // Bleeds scaffold bg under status bar and adds padding!
+                  AppTheme.spacingMedium,
+                  12.0,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center, // PERFECT VERTICAL CENTERING
+                  children: [
+                    // Logo + Title
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center, // PERFECT VERTICAL CENTERING
                         children: [
-                          // Language Toggle
                           Container(
-                            width: 38,
-                            height: 38,
+                            width: 36,
+                            height: 36,
                             decoration: BoxDecoration(
                               color: AppTheme.surface,
-                              borderRadius: BorderRadius.circular(10),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: AppTheme.accentTeal.withOpacity(0.15), width: 1.5), // Premium circular ring border!
                               boxShadow: AppTheme.cardShadow,
                             ),
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              icon: const Icon(LucideIcons.globe, size: 18),
-                              color: AppTheme.accentTeal,
-                              onPressed: () {
-                                context
-                                    .read<LanguageProvider>()
-                                    .toggleLanguage();
-                              },
-                              tooltip: langProvider.tr('Toggle Language'),
+                            padding: const EdgeInsets.all(4),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/images/Logo.jpeg',
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: AppTheme.surface,
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: AppTheme.cardShadow,
-                            ),
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              icon: const Icon(LucideIcons.settings, size: 18),
-                              color: AppTheme.accentTeal,
-                              onPressed: () {
-                                Navigator.of(context).pushNamed('/settings');
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: AppTheme.surface,
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: AppTheme.cardShadow,
-                            ),
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              icon: const Icon(LucideIcons.bell, size: 18),
-                              color: AppTheme.accentTeal,
-                              onPressed: () {
-                                Navigator.of(context).pushNamed('/alert_feed');
-                              },
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Text(
+                              langProvider.appName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.outfit( // Outfit is extremely premium and modern!
+                                fontWeight: FontWeight.w800,
+                                fontSize: 21,
+                                color: AppTheme.textPrimary,
+                                letterSpacing: -0.3,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                )
-                    .animate()
-                    .fadeIn(duration: 600.ms)
-                    .slideY(begin: -0.1, end: 0),
-              ),
+                    ),
+                    const SizedBox(width: 8),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center, // PERFECT VERTICAL CENTERING
+                      children: [
+                        // Language Toggle
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppTheme.borderColor.withOpacity(0.4), width: 1), // Premium soft border
+                            boxShadow: AppTheme.cardShadow,
+                          ),
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            icon: const Icon(LucideIcons.globe, size: 18),
+                            color: AppTheme.accentTeal,
+                            onPressed: () {
+                              context
+                                  .read<LanguageProvider>()
+                                  .toggleLanguage();
+                            },
+                            tooltip: langProvider.tr('Toggle Language'),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppTheme.borderColor.withOpacity(0.4), width: 1), // Premium soft border
+                            boxShadow: AppTheme.cardShadow,
+                          ),
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            icon: const Icon(LucideIcons.settings, size: 18),
+                            color: AppTheme.accentTeal,
+                            onPressed: () {
+                              Navigator.of(context).pushNamed('/settings');
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppTheme.borderColor.withOpacity(0.4), width: 1), // Premium soft border
+                            boxShadow: AppTheme.cardShadow,
+                          ),
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            icon: const Icon(LucideIcons.bell, size: 18),
+                            color: AppTheme.accentTeal,
+                            onPressed: () {
+                              Navigator.of(context).pushNamed('/alert_feed');
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              )
+                  .animate()
+                  .fadeIn(duration: 600.ms)
+                  .slideY(begin: -0.1, end: 0),
+            ),
 
               // Smart Weather & Risk Widget
               const SliverToBoxAdapter(
@@ -1220,7 +1226,6 @@ class _CommunityDashboardState extends State<CommunityDashboard>
             ],
           ),
         ),
-      ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,

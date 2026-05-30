@@ -257,7 +257,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showHelpSupportDialog() {
-    const supportEmail = 'support@hillsafeai.com';
+    const supportEmail = 'hillsafeai@gmail.com';
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(

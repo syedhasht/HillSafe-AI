@@ -432,7 +432,7 @@ const List<_PolicySection> _policySections = [
     icon: LucideIcons.mail,
     color: AppTheme.accentTeal,
     body:
-        'If you have questions, requests, or concerns about this Privacy Policy or your data, contact the HillSafe AI team through the app Help and Support section or by email at support@hillsafeai.com. If this email is not yet active, replace it with the official project support email before publishing.',
+        'If you have questions, requests, or concerns about this Privacy Policy or your data, contact the HillSafe AI team through the app Help and Support section or by email at hillsafeai@gmail.com.',
   ),
   _PolicySection(
     shortTitle: 'Consent',
