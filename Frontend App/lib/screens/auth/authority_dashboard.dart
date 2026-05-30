@@ -165,9 +165,8 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
           ],
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   // ── HEADER ────────────────────────────────────────────────────────────────
   Widget _buildHeader(BuildContext context) {
