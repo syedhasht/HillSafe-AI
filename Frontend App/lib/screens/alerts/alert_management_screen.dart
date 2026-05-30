@@ -88,7 +88,10 @@ class _AlertManagementScreenState extends State<AlertManagementScreen> {
     setState(() => _submitting = true);
 
     try {
-      final regionId = _selectedRegion?['id'] as int?;
+      final rawRegionId = _selectedRegion?['id'];
+      final regionId = rawRegionId is num
+          ? rawRegionId.toInt()
+          : int.tryParse(rawRegionId?.toString() ?? '');
       final result = await _apiService.createAlert(
         regionId: regionId,
         severity: _severity,

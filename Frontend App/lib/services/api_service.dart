@@ -566,8 +566,20 @@ class ApiService {
   ///
   /// Returns list of region maps or empty list on error
   Future<List<Map<String, dynamic>>> fetchRegions() async {
+    return _fetchRegions(refresh: true);
+  }
+
+  /// Fetch cached regions without triggering backend ML refresh.
+  ///
+  /// Use this for dashboards where fast display matters more than forcing a
+  /// live region-risk refresh on every screen open.
+  Future<List<Map<String, dynamic>>> fetchRegionsCached() async {
+    return _fetchRegions(refresh: false);
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchRegions({required bool refresh}) async {
     try {
-      final response = await _getRegionsResponse(refresh: true);
+      final response = await _getRegionsResponse(refresh: refresh);
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -578,7 +590,7 @@ class ApiService {
             'Server is not live right now. Please try again in a few minutes.');
       }
     } catch (e) {
-      print('Fetch regions refresh exception: $e');
+      print('Fetch regions exception: $e');
 
       try {
         final fallbackResponse = await _getRegionsResponse(refresh: false);

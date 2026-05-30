@@ -75,11 +75,44 @@ class AuthorityDashboard extends StatefulWidget {
 
 class _AuthorityDashboardState extends State<AuthorityDashboard> {
   final ApiService _apiService = ApiService();
+  late Future<Map<String, dynamic>> _safetyStatusFuture;
+  late Future<List<Map<String, dynamic>>> _regionsFuture;
+  late Future<List<Map<String, dynamic>>> _alertsFuture;
+  late Future<List<Map<String, dynamic>>> _sosRequestsFuture;
+  late Future<List<dynamic>> _quickStatsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  void _loadDashboardData() {
+    _safetyStatusFuture = _apiService.fetchSafetyStatus();
+    _regionsFuture = _apiService.fetchRegionsCached();
+    _alertsFuture = _apiService.fetchAlerts();
+    _sosRequestsFuture = _apiService.fetchSOSRequests();
+    _quickStatsFuture = Future.wait<dynamic>([
+      _safetyStatusFuture,
+      _regionsFuture,
+      _alertsFuture,
+      _sosRequestsFuture,
+    ]);
+  }
+
+  Future<void> _refreshDashboardData() async {
+    setState(_loadDashboardData);
+    try {
+      await _quickStatsFuture;
+    } catch (_) {
+      // The dashboard widgets render their own error states.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     // Watch ThemeProvider so every rebuild picks up the new AppTheme.isDark value
-    final themeProvider = context.watch<ThemeProvider>();
+    context.watch<ThemeProvider>();
 
     final brightness = Theme.of(context).brightness;
     final overlayStyle = brightness == Brightness.dark
@@ -98,8 +131,12 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
       value: overlayStyle,
       child: Scaffold(
         backgroundColor: _bg(),
-        body: CustomScrollView(
-          slivers: [
+        body: RefreshIndicator(
+          color: _kTeal,
+          onRefresh: _refreshDashboardData,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
             // ── Header ────────────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
@@ -168,7 +205,8 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                 ]),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -282,12 +320,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
   // ── QUICK STATS ───────────────────────────────────────────────────────────
   Widget _buildQuickStats() {
     return FutureBuilder<List<dynamic>>(
-      future: Future.wait([
-        _apiService.fetchSafetyStatus(),
-        _apiService.fetchRegions(),
-        _apiService.fetchAlerts(),
-        _apiService.fetchSOSRequests(),
-      ]),
+      future: _quickStatsFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Container(
@@ -326,9 +359,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {});
-                  },
+                  onPressed: () => _refreshDashboardData(),
                   icon: const Icon(LucideIcons.refreshCw, size: 14),
                   label: Text('Retry Connection', style: _popStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   style: ElevatedButton.styleFrom(
@@ -445,7 +476,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
   // ── RECENT SAFETY CHECK-INS ───────────────────────────────────────────────
   Widget _buildRecentSafetyCheckins() {
     return FutureBuilder<Map<String, dynamic>>(
-      future: _apiService.fetchSafetyStatus(),
+      future: _safetyStatusFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return _DarkCard(
@@ -569,7 +600,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
   // ── SOS REQUESTS ──────────────────────────────────────────────────────────
   Widget _buildSOSRequests() {
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _apiService.fetchSOSRequests(),
+      future: _sosRequestsFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return _DarkCard(

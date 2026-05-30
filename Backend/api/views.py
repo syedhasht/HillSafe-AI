@@ -473,7 +473,8 @@ class CreateAlertView(APIView):
         except Exception:
             targeted_count = 0
 
-        # Push notifications — best-effort offloaded to background thread to prevent TimeoutExceptions!
+        # Push notifications are best-effort and run in the background so the
+        # alert creation request does not time out while Firebase is contacted.
         import threading
 
         def send_notifications_background(alert_id, region_id, severity, message, send_to_all):
@@ -515,18 +516,19 @@ class CreateAlertView(APIView):
 
                 if tokens:
                     label = {
-                        'CRITICAL': '🚨 CRITICAL WARNING',
-                        'HIGH': '⚠️ HIGH ALERT',
-                        'MEDIUM': '🔔 MODERATE ALERT',
-                        'LOW': 'ℹ️ LOW ALERT',
+                        'CRITICAL': 'CRITICAL WARNING',
+                        'HIGH': 'HIGH ALERT',
+                        'MEDIUM': 'SAFETY ALERT',
+                        'LOW': 'SAFETY UPDATE',
                     }.get(severity, severity)
-                    
-                    if bg_region.name == 'All Regions':
-                        title = f'{label} — Global Broadcast'
-                    else:
-                        title = f'{label} — {bg_region.name}'
 
-                    body_message = message[:1000]
+                    if bg_region.name == 'All Regions':
+                        location_line = 'All monitored regions'
+                    else:
+                        location_line = f'{bg_region.name}, {bg_region.district}'
+
+                    title = f'HillSafe AI: {label}'
+                    body_message = f'{location_line}: {message}'[:1000]
 
                     for i in range(0, len(tokens), 500):
                         chunk = tokens[i:i + 500]
@@ -534,28 +536,41 @@ class CreateAlertView(APIView):
                             tokens=chunk,
                             notification=messaging.Notification(title=title, body=body_message),
                             data={
+                                'type': 'AUTHORITY_ALERT',
                                 'alert_id': str(bg_alert.id),
                                 'severity': severity,
                                 'region_id': str(bg_region.id),
                                 'region_name': bg_region.name,
+                                'title': title,
+                                'message': body_message,
+                                'sound': 'default',
                             },
                             android=messaging.AndroidConfig(
                                 priority='high',
                                 notification=messaging.AndroidNotification(
+                                    title=title,
+                                    body=body_message,
                                     sound='default',
                                     default_sound=True,
                                     notification_priority='PRIORITY_MAX',
                                     notification_channel_id='risk_alerts',
+                                    default_vibrate_timings=True,
                                 ),
                             ),
                             apns=messaging.APNSConfig(
-                                payload=messaging.APNSPayload(aps=messaging.Aps(sound='default'))
+                                headers={'apns-priority': '10'},
+                                payload=messaging.APNSPayload(
+                                    aps=messaging.Aps(
+                                        sound='default',
+                                        badge=1,
+                                        content_available=True,
+                                    )
+                                ),
                             ),
                         )
                         messaging.send_each_for_multicast(mc)
             except Exception as exc:
                 print(f'[CreateAlertView] Background push notification error: {exc}')
-
         # Launch background worker asynchronously
         threading.Thread(
             target=send_notifications_background,
