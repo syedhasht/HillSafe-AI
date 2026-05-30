@@ -80,16 +80,22 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
   Widget build(BuildContext context) {
     // Watch ThemeProvider so every rebuild picks up the new AppTheme.isDark value
     final themeProvider = context.watch<ThemeProvider>();
-    final isDark = themeProvider.isDarkMode;
+
+    final brightness = Theme.of(context).brightness;
+    final overlayStyle = brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light.copyWith(
+            statusBarColor: Colors.transparent,
+            systemNavigationBarColor: const Color(0xFF0D0F14),
+            systemNavigationBarIconBrightness: Brightness.light,
+          )
+        : SystemUiOverlayStyle.dark.copyWith(
+            statusBarColor: Colors.transparent,
+            systemNavigationBarColor: const Color(0xFFF5F4F0),
+            systemNavigationBarIconBrightness: Brightness.dark,
+          );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
-        systemNavigationBarColor: isDark ? const Color(0xFF0D0F14) : const Color(0xFFF5F4F0),
-        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-      ),
+      value: overlayStyle,
       child: Scaffold(
         backgroundColor: _bg(),
         body: CustomScrollView(

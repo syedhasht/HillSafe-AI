@@ -956,16 +956,22 @@ class _CommunityDashboardState extends State<CommunityDashboard>
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final langProvider = context.watch<LanguageProvider>();
-    final isDark = themeProvider.isDarkMode;
+
+    final brightness = Theme.of(context).brightness;
+    final overlayStyle = brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light.copyWith(
+            statusBarColor: Colors.transparent,
+            systemNavigationBarColor: const Color(0xFF0F172A),
+            systemNavigationBarIconBrightness: Brightness.light,
+          )
+        : SystemUiOverlayStyle.dark.copyWith(
+            statusBarColor: Colors.transparent,
+            systemNavigationBarColor: const Color(0xFFF5F4F0),
+            systemNavigationBarIconBrightness: Brightness.dark,
+          );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
-        systemNavigationBarColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F4F0),
-        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-      ),
+      value: overlayStyle,
       child: Scaffold(
       // Light warm-white scaffold background
       backgroundColor: AppTheme.background,

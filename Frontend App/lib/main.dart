@@ -47,8 +47,12 @@ void main() async {
   // Ensure Flutter binding is initialized
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
-  await Firebase.initializeApp();
+  // Initialize Firebase with safety fallback to prevent app startup blocks/freezes
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
+  }
 
   // Preload theme preferences to prevent white flash
   final prefs = await SharedPreferences.getInstance();
@@ -58,6 +62,9 @@ void main() async {
   final safetyController = SafetyController();
   // Don't await here to prevent blocking app startup (especially for permissions)
   safetyController.initialize();
+
+  // Initialize default dark overlay style for visible status bar icons on light startup background
+  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
 
   runApp(
     MultiProvider(
