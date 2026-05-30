@@ -707,8 +707,17 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                     if (area != null && area.isNotEmpty)
                       _detailTile(icon: LucideIcons.navigation, label: 'Area', value: area, accentColor: const Color(0xFF16A34A)),
                     if (lat != null && lon != null)
-                      _coordsTile(lat: lat, lon: lon, accentColor: const Color(0xFF16A34A),
-                        bgColor: const Color(0xFFF0FDF4), borderColor: const Color(0xFFBBF7D0), labelColor: const Color(0xFF14532D)),
+                      _coordsTile(
+                        context: context,
+                        lat: lat,
+                        lon: lon,
+                        residentName: name,
+                        type: 'SAFE',
+                        accentColor: const Color(0xFF16A34A),
+                        bgColor: const Color(0xFFF0FDF4),
+                        borderColor: const Color(0xFFBBF7D0),
+                        labelColor: const Color(0xFF14532D),
+                      ),
                   ],
                 ),
               )),
@@ -805,8 +814,17 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                     if (areaName != null && areaName.isNotEmpty)
                       _detailTile(icon: LucideIcons.navigation, label: 'Area', value: areaName, accentColor: const Color(0xFFDC2626)),
                     if (lat != null && lon != null)
-                      _coordsTile(lat: lat, lon: lon, accentColor: const Color(0xFFDC2626),
-                        bgColor: const Color(0xFFFFF1F2), borderColor: const Color(0xFFFECACA), labelColor: const Color(0xFF7F1D1D)),
+                      _coordsTile(
+                        context: context,
+                        lat: lat,
+                        lon: lon,
+                        residentName: name,
+                        type: 'SOS',
+                        accentColor: const Color(0xFFDC2626),
+                        bgColor: const Color(0xFFFFF1F2),
+                        borderColor: const Color(0xFFFECACA),
+                        labelColor: const Color(0xFF7F1D1D),
+                      ),
                   ],
                 ),
               )),
@@ -852,37 +870,71 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
     );
   }
 
-  Widget _coordsTile({required double lat, required double lon, required Color accentColor,
-      required Color bgColor, required Color borderColor, required Color labelColor}) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 38, height: 38,
-            decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle),
-            child: const Icon(LucideIcons.crosshair, color: Colors.white, size: 20),
+  Widget _coordsTile({
+    required BuildContext context,
+    required double lat,
+    required double lon,
+    required String residentName,
+    required String type, // 'SOS' or 'SAFE'
+    required Color accentColor,
+    required Color bgColor,
+    required Color borderColor,
+    required Color labelColor,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(top: 10),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+        ),
+        child: InkWell(
+          onTap: () {
+            // Dismiss the modal dialog first
+            Navigator.pop(context);
+            // Navigate to War Room Map Screen with coordinates verification arguments
+            Navigator.pushNamed(
+              context,
+              '/authority_map',
+              arguments: {
+                'latitude': lat,
+                'longitude': lon,
+                'name': residentName,
+                'type': type,
+              },
+            );
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle),
+                  child: const Icon(LucideIcons.crosshair, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Exact Coordinates (Tap to Verify)',
+                      style: _popStyle(color: labelColor, fontSize: 11, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text('${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}',
+                      style: _interStyle(color: const Color(0xFF111827), fontSize: 14, fontWeight: FontWeight.w800)),
+                  ],
+                )),
+                const SizedBox(width: 8),
+                Icon(LucideIcons.map, color: labelColor, size: 20),
+              ],
+            ),
           ),
-          const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Exact Coordinates',
-                style: TextStyle(color: labelColor, fontSize: 12, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 5),
-              Text('${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}',
-                style: const TextStyle(color: Color(0xFF111827), fontSize: 15, fontWeight: FontWeight.w800)),
-            ],
-          )),
-        ],
+        ),
       ),
     );
   }

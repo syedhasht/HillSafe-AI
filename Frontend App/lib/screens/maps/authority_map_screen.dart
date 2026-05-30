@@ -30,6 +30,13 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
   String? _errorMessage;
   Timer? _refreshTimer;
 
+  // Verification overlay state
+  bool _isVerifyingLocation = false;
+  LatLng? _verificationCoords;
+  String? _verificationName;
+  String? _verificationType;
+  bool _isFirstLoad = true;
+
   // Pakistan center
   static const LatLng _pakistanCenter = LatLng(34.0, 71.5);
 
@@ -41,6 +48,30 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       _loadRegions();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isFirstLoad) {
+      _isFirstLoad = false;
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args != null) {
+        final double? lat = args['latitude'];
+        final double? lon = args['longitude'];
+        if (lat != null && lon != null) {
+          _isVerifyingLocation = true;
+          _verificationCoords = LatLng(lat, lon);
+          _verificationName = args['name']?.toString() ?? 'Resident';
+          _verificationType = args['type']?.toString() ?? 'SAFE';
+          
+          // Animate and center camera to this coordinate immediately on startup
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _mapController.move(_verificationCoords!, 16.0);
+          });
+        }
+      }
+    }
   }
 
   @override
@@ -59,8 +90,10 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
           _isLoading = false;
           _errorMessage = null;
         });
-        // Fit camera to show all region markers after load
-        WidgetsBinding.instance.addPostFrameCallback((_) => _fitCamera());
+        // Fit camera to show all region markers after load (only if NOT verifying a specific coordinate)
+        if (!_isVerifyingLocation) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _fitCamera());
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -246,6 +279,96 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
                   ),
                 ),
               ),
+
+            // ── Verification HUD (bottom center-left) ──
+            if (_isVerifyingLocation && _verificationCoords != null)
+              Positioned(
+                bottom: 24,
+                left: AppTheme.spacingMedium,
+                right: 76, // Leave room for recenter FAB on the right
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _verificationType == 'SOS' ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _verificationType == 'SOS' ? const Color(0xFFEF4444) : const Color(0xFF22C55E),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.12),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _verificationType == 'SOS' ? LucideIcons.siren : LucideIcons.shieldCheck,
+                        color: _verificationType == 'SOS' ? const Color(0xFFEF4444) : const Color(0xFF22C55E),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'VERIFYING ${_verificationType} LOCATION',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1,
+                                color: _verificationType == 'SOS' ? const Color(0xFFB91C1C) : const Color(0xFF166534),
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              _verificationName!,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF111827),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Clear / Close button
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _isVerifyingLocation = false;
+                            _verificationCoords = null;
+                            _verificationName = null;
+                            _verificationType = null;
+                          });
+                          _fitCamera(); // Re-center map to normal bounds
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          backgroundColor: _verificationType == 'SOS' ? const Color(0xFFFEE2E2) : const Color(0xFFDCFCE7),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: Text(
+                          'Exit',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: _verificationType == 'SOS' ? const Color(0xFFB91C1C) : const Color(0xFF166534),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.2, end: 0),
           ],
         ),
       ),
@@ -321,58 +444,114 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
           ),
 
         // ── Region name + pin markers ──
-        if (_regions.isNotEmpty)
+        if (_regions.isNotEmpty || (_isVerifyingLocation && _verificationCoords != null))
           MarkerLayer(
-            markers: _regions.map((region) {
-              final point = _regionLatLng(region);
-              if (point == null) return null;
-              final riskScore = _regionRiskScore(region);
-              final color = _riskColor(riskScore);
-              final name = region['name']?.toString() ?? 'Region';
+            markers: [
+              ..._regions.map((region) {
+                final point = _regionLatLng(region);
+                if (point == null) return null;
+                final riskScore = _regionRiskScore(region);
+                final color = _riskColor(riskScore);
+                final name = region['name']?.toString() ?? 'Region';
 
-              return Marker(
-                point: point,
-                width: 120,
-                height: 52,
-                child: GestureDetector(
-                  onTap: () => _showRegionDetails(region),
+                return Marker(
+                  point: point,
+                  width: 120,
+                  height: 52,
+                  child: GestureDetector(
+                    onTap: () => _showRegionDetails(region),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.18),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                            border:
+                                Border.all(color: color.withOpacity(0.6)),
+                          ),
+                          child: Text(
+                            name.length > 12
+                                ? '${name.substring(0, 12)}…'
+                                : name,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 9,
+                              color: color,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Icon(LucideIcons.mapPin, color: color, size: 20),
+                      ],
+                    ),
+                  ),
+                );
+              }).whereType<Marker>().toList(),
+
+              // If verifying a location, add the custom verification pin!
+              if (_isVerifyingLocation && _verificationCoords != null)
+                Marker(
+                  point: _verificationCoords!,
+                  width: 160,
+                  height: 100,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
+                          color: _verificationType == 'SOS' ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _verificationType == 'SOS' ? const Color(0xFFEF4444) : const Color(0xFF22C55E),
+                            width: 1.5,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.18),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
+                              color: Colors.black.withOpacity(0.12),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
                             ),
                           ],
-                          border:
-                              Border.all(color: color.withOpacity(0.6)),
                         ),
                         child: Text(
-                          name.length > 12
-                              ? '${name.substring(0, 12)}…'
-                              : name,
+                          '${_verificationName} (${_verificationType})',
                           style: TextStyle(
-                            fontWeight: FontWeight.bold,
                             fontSize: 9,
-                            color: color,
+                            fontWeight: FontWeight.bold,
+                            color: _verificationType == 'SOS' ? const Color(0xFF991B1B) : const Color(0xFF15803D),
                           ),
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Icon(LucideIcons.mapPin, color: color, size: 20),
+                      const SizedBox(height: 4),
+                      // Pulsing beacon pin!
+                      Animate(
+                        onInit: (controller) => controller.repeat(reverse: true),
+                        effects: const [
+                          ScaleEffect(begin: Offset(0.8, 0.8), end: Offset(1.2, 1.2), duration: Duration(milliseconds: 1000), curve: Curves.easeInOut),
+                        ],
+                        child: Icon(
+                          _verificationType == 'SOS' ? LucideIcons.siren : LucideIcons.shieldCheck,
+                          color: _verificationType == 'SOS' ? const Color(0xFFEF4444) : const Color(0xFF22C55E),
+                          size: 32,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              );
-            }).whereType<Marker>().toList(),
+            ],
           ),
       ],
     );
