@@ -54,7 +54,8 @@ class AnalyticsDetailView(APIView):
             print(f"[Analytics] Dynamic region risk refresh skipped: {e}")
 
         days = 1 if period == '24hours' else 30 if period == '30days' else 7
-        start_dt = timezone.now() - timezone.timedelta(days=days)
+        local_now = timezone.localtime(timezone.now())
+        start_dt = local_now - timezone.timedelta(days=days)
 
         # ── Region queryset ───────────────────────────────────────────────
         regions = Region.objects.all()
@@ -74,9 +75,7 @@ class AnalyticsDetailView(APIView):
             timestamp__gte=start_dt,
         )
 
-        risk_trend = []
-        labels = []
-
+        pred_map = {}
         if pred_qs.exists():
             # Group by day, average risk score
             daily_risk = (
@@ -84,20 +83,14 @@ class AnalyticsDetailView(APIView):
                 .annotate(day=TruncDate('timestamp'))
                 .values('day')
                 .annotate(avg_risk=Avg('risk_score'))
-                .order_by('day')
             )
             for entry in daily_risk:
-                risk_trend.append(round((entry['avg_risk'] or 0) * 100, 1))
-                labels.append(entry['day'].strftime('%a'))
-        else:
-            # No historical predictions — use current risk scores as baseline
-            avg_risk = (
-                regions.aggregate(avg=Avg('current_risk_score'))['avg'] or 0
-            )
-            for i in range(days):
-                day = (timezone.now() - timezone.timedelta(days=days - 1 - i)).date()
-                risk_trend.append(round(avg_risk * 100, 1))
-                labels.append(day.strftime('%a') if days <= 7 else str(day.day))
+                if entry['day']:
+                    pred_map[entry['day'].strftime('%Y-%m-%d')] = entry['avg_risk']
+
+        avg_risk = (
+            regions.aggregate(avg=Avg('current_risk_score'))['avg'] or 0
+        )
 
         # ── Alerts per day (real Alert table) ────────────────────────────
         alert_qs = Alert.objects.filter(
@@ -117,13 +110,29 @@ class AnalyticsDetailView(APIView):
         alert_map = {
             entry['day'].strftime('%Y-%m-%d'): entry['count']
             for entry in daily_alerts
+            if entry['day']
         }
 
+        # Build unified lists of exactly matching sizes aligned to local dates
+        risk_trend = []
+        labels = []
         alerts_per_day = []
+
         for i in range(days):
-            day = (timezone.now() - timezone.timedelta(days=days - 1 - i)).date()
+            day = (local_now - timezone.timedelta(days=days - 1 - i)).date()
             key = day.strftime('%Y-%m-%d')
+            
+            # Generate local date labels
+            labels.append(day.strftime('%a') if days <= 7 else str(day.day))
+            
+            # Map daily alerts
             alerts_per_day.append(alert_map.get(key, 0))
+            
+            # Map daily average risk trend
+            if key in pred_map:
+                risk_trend.append(round((pred_map[key] or 0) * 100, 1))
+            else:
+                risk_trend.append(round(avg_risk * 100, 1))
 
         # ── Risk breakdown (current live scores) ─────────────────────────
         critical_count = regions.filter(current_risk_score__gte=0.70).count()
