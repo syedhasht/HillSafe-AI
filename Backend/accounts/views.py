@@ -6,7 +6,111 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from .models import DeviceToken
+from .models import AuthorityProfile, DeviceToken, ResidentProfile
+
+
+def sync_role_profile(user):
+    profile_model = AuthorityProfile if user.role == 'AUTHORITY' else ResidentProfile
+    profile, _ = profile_model.objects.get_or_create(
+        user=user,
+        defaults={
+            'username': user.username,
+            'phone_number': user.phone_number,
+            'email': user.email or '',
+        },
+    )
+    fields = []
+    if profile.username != user.username:
+        profile.username = user.username
+        fields.append('username')
+    if profile.phone_number != user.phone_number:
+        profile.phone_number = user.phone_number
+        fields.append('phone_number')
+    if profile.email != (user.email or ''):
+        profile.email = user.email or ''
+        fields.append('email')
+    if fields:
+        fields.append('updated_at')
+        profile.save(update_fields=fields)
+    return profile
+
+
+class ProfileView(APIView):
+    """
+    GET/PATCH current user's profile.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        role_profile = sync_role_profile(user)
+        return Response(
+            {
+                'username': user.username,
+                'phone_number': user.phone_number,
+                'email': user.email or '',
+                'profile_email': role_profile.email,
+                'language': user.language,
+                'role': user.role,
+                'user_id': user.id,
+                'user_key': user.phone_number,
+                'profile_table': 'authority_profile' if user.role == 'AUTHORITY' else 'resident_profile',
+                'dark_mode': user.dark_mode,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def patch(self, request):
+        user = request.user
+        username = (request.data.get('username') or '').strip()
+        email = (request.data.get('email') or '').strip()
+        phone_number = (request.data.get('phone_number') or '').strip()
+        language = (request.data.get('language') or '').strip()
+        dark_mode = request.data.get('dark_mode')
+
+        if username:
+            user.username = username
+
+        user.email = email
+        update_fields = ['username', 'email']
+
+        if phone_number and phone_number != user.phone_number:
+            from .models import User
+            if User.objects.filter(phone_number=phone_number).exclude(id=user.id).exists():
+                return Response(
+                    {'error': 'Phone number already registered by another account.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user.phone_number = phone_number
+            update_fields.append('phone_number')
+
+        if language in dict(user.LANGUAGE_CHOICES):
+            user.language = language
+            update_fields.append('language')
+
+        if dark_mode is not None:
+            user.dark_mode = bool(dark_mode)
+            update_fields.append('dark_mode')
+
+        user.save(update_fields=update_fields)
+        role_profile = sync_role_profile(user)
+
+        return Response(
+            {
+                'username': user.username,
+                'phone_number': user.phone_number,
+                'email': user.email or '',
+                'profile_email': role_profile.email,
+                'language': user.language,
+                'role': user.role,
+                'user_id': user.id,
+                'user_key': user.phone_number,
+                'profile_table': 'authority_profile' if user.role == 'AUTHORITY' else 'resident_profile',
+                'dark_mode': user.dark_mode,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class SaveDeviceTokenView(APIView):

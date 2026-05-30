@@ -16,12 +16,12 @@ from .safety_messages import get_safety_message
 
 
 def _risk_level(score):
-    if score > 0.7:
+    if score >= 0.7:
+        return 'CRITICAL', False
+    if score >= 0.5:
         return 'HIGH', False
-    if score > 0.3:
-        return 'MODERATE', False
-    if score < 0.15:
-        return 'NO RISK', True
+    if score >= 0.3:
+        return 'MEDIUM', False
     return 'LOW', True
 
 
@@ -85,11 +85,15 @@ def _fetch_openweather_weather(latitude, longitude):
     rain = float(data.get('rain', {}).get('1h') or data.get('rain', {}).get('3h') or 0)
     snow = float(data.get('snow', {}).get('1h') or data.get('snow', {}).get('3h') or 0)
     main = data.get('main', {})
+    sys = data.get('sys', {})
 
     return {
         'temperature': float(main.get('temp') or 0),
         'rainfall_mm': rain + snow,
         'humidity': float(main.get('humidity') or 0),
+        'sunrise': sys.get('sunrise'),
+        'sunset': sys.get('sunset'),
+        'timezone_offset': data.get('timezone'),
         'source': 'openweather',
     }
 
@@ -286,6 +290,9 @@ def _terrain_defaults_from_region(region):
     stored_risk = float(region.current_risk_score or 0)
 
     if stored_risk >= 0.7:
+        slope = 5
+        lithology = 5
+    elif stored_risk >= 0.5:
         slope = 4
         lithology = 4
     elif stored_risk >= 0.3:

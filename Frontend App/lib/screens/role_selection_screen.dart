@@ -4,136 +4,129 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 
+import 'package:frontend_app/theme/theme_provider.dart';
+import 'package:provider/provider.dart';
+
 class RoleSelectionScreen extends StatelessWidget {
   const RoleSelectionScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.surfaceGrey,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppTheme.spacingLarge),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 60),
-              // Logo
-              Container(
-                width: 120,
-                height: 120,
-                padding: const EdgeInsets.all(AppTheme.spacingMedium),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: ClipOval(
-                  child: Image.asset(
-                    'assets/images/Logo.jpeg',
-                    fit: BoxFit.cover,
+    return Theme(
+      data: AppTheme.lightTheme,
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Scaffold(
+          backgroundColor: AppTheme.lightBackground,
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingLarge,
+                vertical: AppTheme.spacingMedium,
+              ),
+              child: Column(
+                children: [
+                  const Spacer(flex: 2),
+  
+                  // Logo
+                  Container(
+                    width: 110,
+                    height: 110,
+                    decoration: BoxDecoration(
+                      color: AppTheme.lightSurface,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.10),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                        spreadRadius: 0,
+                      ),
+                    ],
                   ),
-                ),
-              )
-              .animate()
-              .fadeIn(duration: 800.ms, curve: Curves.easeOut)
-              .scale(begin: const Offset(0.8, 0.8), curve: Curves.elasticOut),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/images/Logo.jpeg',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                )
+                    .animate()
+                    .fadeIn(duration: 600.ms, curve: Curves.easeOut)
+                    .scale(
+                      begin: const Offset(0.8, 0.8),
+                      curve: Curves.easeOutBack,
+                    ),
 
-              const SizedBox(height: AppTheme.spacingXLarge),
+                const SizedBox(height: AppTheme.spacingLarge),
 
-              // Header
-              Text(
-                'Welcome to HillSafe AI',
-                style: GoogleFonts.poppins(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textPrimary,
-                  letterSpacing: -0.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppTheme.spacingSmall),
-              Text(
-                'Choose your role to continue',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  color: AppTheme.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppTheme.spacingXLarge * 2),
+                // Title
+                Text(
+                  'Welcome to HillSafe AI',
+                  style: GoogleFonts.poppins(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.lightTextPrimary,
+                    letterSpacing: -0.3,
+                  ),
+                  textAlign: TextAlign.center,
+                )
+                    .animate()
+                    .fadeIn(delay: 200.ms, duration: 500.ms)
+                    .slideY(begin: 0.15, end: 0),
 
-              // Role Cards
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Community User Card
-                    _RoleCard(
-                      icon: LucideIcons.home,
-                      title: 'I am a Resident',
-                      subtitle: 'Receive alerts and safety tips.',
-                      isDark: false,
-                      onTap: () {
-                        Navigator.of(context).pushNamed('/resident_login');
-                      },
-                    )
-                        .animate()
-                        .fadeIn(
-                          duration: 600.ms,
-                          delay: 200.ms,
-                          curve: Curves.easeOut,
-                        )
-                        .slideY(
-                          begin: 0.3,
-                          end: 0,
-                          duration: 600.ms,
-                          delay: 200.ms,
-                          curve: Curves.easeOutCubic,
-                        ),
+                const SizedBox(height: 6),
 
-                    const SizedBox(height: AppTheme.spacingLarge),
+                Text(
+                  'Choose your role to continue',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: AppTheme.lightTextSecondary,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  textAlign: TextAlign.center,
+                )
+                    .animate()
+                    .fadeIn(delay: 300.ms, duration: 500.ms),
 
-                    // Disaster Authority Card
-                    _RoleCard(
-                      icon: LucideIcons.shieldCheck,
-                      title: 'Disaster Authority',
-                      subtitle: 'Monitor risks and manage alerts.',
-                      isDark: true,
-                      onTap: () {
-                        Navigator.of(context).pushNamed('/login');
-                      },
-                    )
-                        .animate()
-                        .fadeIn(
-                          duration: 600.ms,
-                          delay: 400.ms,
-                          curve: Curves.easeOut,
-                        )
-                        .slideY(
-                          begin: 0.3,
-                          end: 0,
-                          duration: 600.ms,
-                          delay: 400.ms,
-                          curve: Curves.easeOutCubic,
-                        ),
-                  ],
-                ),
-              ),
-            ],
+                const Spacer(flex: 2),
+
+                // Resident Card
+                _RoleCard(
+                  icon: LucideIcons.home,
+                  title: 'I am a Resident',
+                  subtitle: 'Receive alerts and safety tips.',
+                  isDark: false,
+                  onTap: () =>
+                      Navigator.of(context).pushNamed('/resident_login'),
+                )
+                    .animate()
+                    .fadeIn(delay: 400.ms, duration: 500.ms)
+                    .slideY(begin: 0.2, end: 0),
+
+                const SizedBox(height: AppTheme.spacingMedium),
+
+                // Authority Card
+                _RoleCard(
+                  icon: LucideIcons.shieldCheck,
+                  title: 'Disaster Authority',
+                  subtitle: 'Monitor risks and manage alerts.',
+                  isDark: true,
+                  onTap: () => Navigator.of(context).pushNamed('/login'),
+                )
+                    .animate()
+                    .fadeIn(delay: 500.ms, duration: 500.ms)
+                    .slideY(begin: 0.2, end: 0),
+
+                const Spacer(flex: 1),
+              ],
+            ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _RoleCard extends StatefulWidget {
@@ -156,95 +149,92 @@ class _RoleCard extends StatefulWidget {
 }
 
 class _RoleCardState extends State<_RoleCard> {
-  bool _isHovered = false;
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
+    final bg = widget.isDark ? AppTheme.primaryDark : AppTheme.lightSurface;
+    final titleColor =
+        widget.isDark ? Colors.white : AppTheme.lightTextPrimary;
+    final subtitleColor =
+        widget.isDark ? Colors.white.withOpacity(0.65) : AppTheme.lightTextSecondary;
+    final iconBg = widget.isDark
+        ? Colors.white.withOpacity(0.12)
+        : AppTheme.accentTealLight;
+    final iconColor =
+        widget.isDark ? Colors.white : AppTheme.accentTeal;
+    final arrowColor =
+        widget.isDark ? Colors.white.withOpacity(0.5) : AppTheme.lightTextSecondary;
+
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 120),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.all(AppTheme.spacingLarge * 1.5),
-          decoration: widget.isDark
-              ? AppTheme.bentoCardDark.copyWith(
-                  boxShadow: [
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.all(AppTheme.spacingLarge),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+            boxShadow: widget.isDark
+                ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(_isHovered ? 0.2 : 0.1),
-                      blurRadius: _isHovered ? 20 : 10,
-                      offset: const Offset(0, 5),
-                      spreadRadius: _isHovered ? 2 : 0,
+                      color: AppTheme.primaryDark.withOpacity(0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
                     ),
-                  ],
-                )
-              : AppTheme.bentoCardLight.copyWith(
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(_isHovered ? 0.15 : 0.08),
-                      blurRadius: _isHovered ? 20 : 10,
-                      offset: const Offset(0, 5),
-                      spreadRadius: _isHovered ? 2 : 0,
-                    ),
-                  ],
-                ),
+                  ]
+                : AppTheme.cardShadow,
+          ),
           child: Row(
             children: [
-              // Icon
+              // Icon container
               Container(
-                padding: const EdgeInsets.all(AppTheme.spacingMedium),
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
-                  color: widget.isDark
-                      ? Colors.white.withOpacity(0.15)
-                      : AppTheme.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  widget.icon,
-                  size: 32,
-                  color: widget.isDark
-                      ? AppTheme.textOnDark
-                      : AppTheme.primaryColor,
-                ),
+                child: Icon(widget.icon, size: 26, color: iconColor),
               ),
+
               const SizedBox(width: AppTheme.spacingMedium),
 
-              // Text Content
+              // Text
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       widget.title,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            color: widget.isDark
-                                ? AppTheme.textOnDark
-                                : AppTheme.textPrimary,
-                            fontSize: 20,
-                          ),
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: titleColor,
+                      ),
                     ),
-                    const SizedBox(height: AppTheme.spacingSmall / 2),
+                    const SizedBox(height: 2),
                     Text(
                       widget.subtitle,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: widget.isDark
-                                ? AppTheme.textOnDark.withOpacity(0.8)
-                                : AppTheme.textSecondary,
-                          ),
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: subtitleColor,
+                        height: 1.4,
+                      ),
                     ),
                   ],
                 ),
               ),
 
-              // Arrow Icon
-              Icon(
-                LucideIcons.chevronRight,
-                color: widget.isDark
-                    ? AppTheme.textOnDark.withOpacity(0.6)
-                    : AppTheme.textSecondary,
-              ),
+              // Arrow
+              Icon(LucideIcons.chevronRight, size: 20, color: arrowColor),
             ],
           ),
         ),
@@ -252,4 +242,3 @@ class _RoleCardState extends State<_RoleCard> {
     );
   }
 }
-

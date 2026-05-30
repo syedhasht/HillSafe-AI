@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import IncidentReport, SafetyStatus
+from .models import IncidentReport, SafetyStatus, SOSRequest
 
 
 @admin.register(IncidentReport)
@@ -7,7 +7,7 @@ class IncidentReportAdmin(admin.ModelAdmin):
     """
     Admin interface for incident reports.
     """
-    list_display = ['id', 'user', 'region', 'get_description_preview', 'timestamp', 'is_verified']
+    list_display = ['id', 'user', 'region', 'area_name', 'report_radius_km', 'get_description_preview', 'timestamp', 'is_verified']
     list_filter = ['is_verified', 'region', 'timestamp']
     search_fields = ['user__username', 'region__name', 'description']
     readonly_fields = ['timestamp']
@@ -16,6 +16,9 @@ class IncidentReportAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Report Information', {
             'fields': ('user', 'region', 'description', 'image')
+        }),
+        ('Location', {
+            'fields': ('area_name', 'latitude', 'longitude', 'report_radius_km')
         }),
         ('Status', {
             'fields': ('is_verified', 'timestamp')
@@ -64,3 +67,13 @@ class SafetyStatusAdmin(admin.ModelAdmin):
             'fields': ('is_safe', 'last_marked_at')
         }),
     )
+
+
+@admin.register(SOSRequest)
+class SOSRequestAdmin(admin.ModelAdmin):
+    """Admin interface for emergency SOS requests."""
+    list_display = ['id', 'name', 'phone_number', 'region', 'risk_level', 'status', 'timestamp']
+    list_filter = ['status', 'risk_level', 'region', 'timestamp']
+    search_fields = ['name', 'phone_number', 'area_name', 'region__name', 'message']
+    readonly_fields = ['timestamp']
+    date_hierarchy = 'timestamp'

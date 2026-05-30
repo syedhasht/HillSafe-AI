@@ -89,9 +89,10 @@ dependency_overrides:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/Logo.jpeg"
-  adaptive_icon_background: "#1E293B"
-  adaptive_icon_foreground: "assets/images/Logo.jpeg"
+  image_path: "assets/images/app_icon.png"
+  remove_alpha_ios: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/app_icon_foreground.png"
 
 flutter:
   uses-material-design: true
@@ -99,6 +100,3 @@ flutter:
   # Assets
   assets:
     - assets/images/
-
-  # For details regarding fonts from package dependencies,
-  # see https://flutter.dev/to/font-from-package

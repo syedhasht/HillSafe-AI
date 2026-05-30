@@ -13,6 +13,11 @@ class User(AbstractUser):
         ('COMMUNITY', 'Community User'),
         ('ADMIN', 'System Admin'),
     ]
+
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('ur', 'Urdu'),
+    ]
     
     role = models.CharField(
         max_length=20,
@@ -22,10 +27,26 @@ class User(AbstractUser):
     )
     
     phone_number = models.CharField(
-        max_length=15,
-        blank=True,
-        null=True,
-        help_text="User's contact phone number"
+        max_length=20,
+        unique=True,
+        help_text="User's unique contact phone number"
+    )
+
+    is_logged_in = models.BooleanField(
+        default=False,
+        help_text="Whether the user currently has an active app login"
+    )
+
+    language = models.CharField(
+        max_length=2,
+        choices=LANGUAGE_CHOICES,
+        default='en',
+        help_text="User's preferred app language"
+    )
+
+    dark_mode = models.BooleanField(
+        default=False,
+        help_text="Whether the user has dark mode enabled"
     )
     
     # Safety Status Fields
@@ -56,6 +77,58 @@ class User(AbstractUser):
         verbose_name = "User"
         verbose_name_plural = "Users"
         ordering = ['-date_joined']
+
+
+class ResidentProfile(models.Model):
+    """
+    Resident-specific login/profile record.
+    Kept separate from authority profile data while still linking to auth user.
+    """
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='resident_profile',
+    )
+    username = models.CharField(max_length=150)
+    phone_number = models.CharField(max_length=20, unique=True)
+    email = models.EmailField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Resident: {self.username} ({self.phone_number})"
+
+    class Meta:
+        verbose_name = "Resident Login Profile"
+        verbose_name_plural = "Resident Login Profiles"
+        ordering = ['-updated_at']
+
+
+class AuthorityProfile(models.Model):
+    """
+    Authority-specific login/profile record.
+    Kept separate from resident login/profile data.
+    """
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='authority_profile',
+    )
+    username = models.CharField(max_length=150, unique=True)
+    phone_number = models.CharField(max_length=20, unique=True)
+    email = models.EmailField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Authority: {self.username} ({self.phone_number})"
+
+    class Meta:
+        verbose_name = "Authority Login Profile"
+        verbose_name_plural = "Authority Login Profiles"
+        ordering = ['-updated_at']
 
 
 class DeviceToken(models.Model):

@@ -5,8 +5,10 @@ import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/services/api_service.dart';
 import 'package:intl/intl.dart';
 
-/// Analytics Trends Screen - Data Visualization
-/// Dark mode focused with professional chart displays
+/// Analytics Trends Screen â€” Light theme, professional chart displays
+import 'package:frontend_app/theme/theme_provider.dart';
+import 'package:provider/provider.dart';
+
 class AnalyticsTrendsScreen extends StatefulWidget {
   const AnalyticsTrendsScreen({super.key});
 
@@ -14,9 +16,217 @@ class AnalyticsTrendsScreen extends StatefulWidget {
   State<AnalyticsTrendsScreen> createState() => _AnalyticsTrendsScreenState();
 }
 
+// Stat Card
+
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String change;
+  final bool? changePositive;
+  final Color color;
+
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.change,
+    required this.changePositive,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacingMedium),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: AppTheme.cardShadow,
+        border: Border.all(color: AppTheme.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: AppTheme.spacingSmall),
+          Text(
+            label,
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: changePositive == null
+                      ? AppTheme.accentTeal.withOpacity(0.12)
+                      : (changePositive!
+                          ? Colors.green.withOpacity(0.12)
+                          : Colors.red.withOpacity(0.12)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  change,
+                  style: TextStyle(
+                    color: changePositive == null
+                        ? AppTheme.accentTeal
+                        : (changePositive! ? Colors.green : Colors.red),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Bar Chart
+
+class _BarChart extends StatelessWidget {
+  final List<double> data;
+  final List<String> labels;
+  final Color color;
+
+  const _BarChart({
+    required this.data,
+    required this.labels,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.isEmpty) return const SizedBox();
+
+    final maxValue = data.reduce((a, b) => a > b ? a : b);
+    final showValueLabels = data.length <= 7 && maxValue > 0;
+    const double labelReserve = 20.0;
+
+    return Column(
+      children: [
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final availableHeight =
+                  constraints.maxHeight - (showValueLabels ? labelReserve : 0);
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(data.length, (index) {
+                  final value = data[index];
+                  final barHeight = maxValue > 0
+                      ? ((value / maxValue) * availableHeight)
+                          .clamp(0.0, availableHeight)
+                      : 0.0;
+
+                  return Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                          horizontal: data.length > 10 ? 1 : 3),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (showValueLabels) ...[
+                            Text(
+                              value == 0 ? '' : '${value.toInt()}',
+                              style: TextStyle(
+                                color: AppTheme.textPrimary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                          ],
+                          Container(
+                            height: barHeight,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [
+                                  color.withOpacity(0.7),
+                                  color,
+                                ],
+                              ),
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(4),
+                              ),
+                            ),
+                          )
+                              .animate()
+                              .scaleY(
+                                begin: 0,
+                                end: 1,
+                                alignment: Alignment.bottomCenter,
+                                duration: 700.ms,
+                                delay: (index * (data.length > 10 ? 15 : 80))
+                                    .ms,
+                                curve: Curves.easeOutCubic,
+                              ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(labels.length, (i) {
+            bool showLabel = false;
+            if (labels.length <= 7) {
+              showLabel = true;
+            } else if (labels.length == 30) {
+              showLabel = (i == 0 || i == 6 || i == 12 || i == 18 || i == 24 || i == 29);
+            } else {
+              showLabel = (i == 0 || i == labels.length - 1 || (labels.length > 2 ? i == (labels.length ~/ 2) : false));
+            }
+            return Expanded(
+              child: Text(
+                showLabel ? labels[i] : '',
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.visible,
+                softWrap: false,
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 9),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+}
+
 class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
   final ApiService _apiService = ApiService();
-  
+
   String _selectedPeriod = '7 Days';
   Map<String, dynamic> _analyticsData = {};
   List<Map<String, dynamic>> _regions = [];
@@ -43,15 +253,24 @@ class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
     }
   }
 
-  Future<void> _loadAnalytics() async {
+  Future<void> _loadAnalytics({bool force = false}) async {
     setState(() => _isLoading = true);
-    
+
     try {
       final data = await _apiService.fetchAnalytics(
         period: _getPeriodParam(_selectedPeriod),
-        regionId: _selectedRegionId != null ? int.tryParse(_selectedRegionId!) : null,
+        regionId: _selectedRegionId != null
+            ? int.tryParse(_selectedRegionId!)
+            : null,
+        force: force,
       );
-      
+
+      if (data.isEmpty) {
+        print('[Analytics] Backend returned empty data.');
+      } else {
+        print('[Analytics] Loaded ${data.length} keys: ${data.keys.toList()}');
+      }
+
       if (mounted) {
         setState(() {
           _analyticsData = data;
@@ -59,7 +278,7 @@ class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
         });
       }
     } catch (e) {
-      print('Error loading analytics: $e');
+      print('[Analytics] Error loading analytics: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -81,55 +300,63 @@ class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
 
   List<String> _generateLabels(int count) {
     if (count == 1) return ['Now'];
-    
     final now = DateTime.now();
-    final dateFormat = DateFormat('E'); // Mon, Tue
-    
+    final dateFormat = DateFormat('E');
     if (count == 7) {
-      // Return last 7 days ending today
       return List.generate(7, (i) {
         final date = now.subtract(Duration(days: 6 - i));
         return dateFormat.format(date);
       });
     }
-    
     if (count == 30) {
-      // Return 6 labels spread across 30 days
       return List.generate(6, (i) {
         final dayIndex = (i + 1) * 5;
         final date = now.subtract(Duration(days: 30 - dayIndex));
         return '${date.day}';
       });
     }
-    
     return List.generate(count, (i) => '${i + 1}');
   }
 
+  String get periodName => _selectedPeriod;
+
   @override
   Widget build(BuildContext context) {
+    context.watch<ThemeProvider>();
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // Dark background
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
             // App Bar
             SliverAppBar(
               floating: true,
-              backgroundColor: const Color(0xFF1E293B),
-              title: const Text('Analytics & Trends'),
+              backgroundColor: AppTheme.surface,
+              foregroundColor: AppTheme.textPrimary,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              title: Text(
+                'Analytics & Trends',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                ),
+              ),
               actions: [
                 IconButton(
                   icon: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: AppTheme.accentTeal,
                           ),
                         )
-                      : const Icon(LucideIcons.refreshCw),
-                  onPressed: _isLoading ? null : _loadAnalytics,
+                      : Icon(LucideIcons.refreshCw,
+                          color: AppTheme.textPrimary),
+                  onPressed: _isLoading ? null : () => _loadAnalytics(force: true),
                   tooltip: 'Reload',
                 ),
               ],
@@ -184,45 +411,93 @@ class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
               child: SizedBox(height: AppTheme.spacingLarge),
             ),
 
-            // Rainfall Chart
+            // Alerts per Day Chart
             if (!_isLoading && _analyticsData.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppTheme.spacingLarge,
                   ),
-                  child: _buildRainfallChart(),
+                  child: _buildAlertsChart(),
                 )
                     .animate()
                     .fadeIn(duration: 600.ms, delay: 400.ms)
                     .slideY(begin: 0.1, end: 0),
               ),
 
-            const SliverToBoxAdapter(
-              child: SizedBox(height: AppTheme.spacingLarge),
-            ),
-
-            // Susceptibility Chart
-            if (!_isLoading && _analyticsData.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spacingLarge,
-                  ),
-                  child: _buildSusceptibilityChart(),
-                )
-                    .animate()
-                    .fadeIn(duration: 600.ms, delay: 600.ms)
-                    .slideY(begin: 0.1, end: 0),
-              ),
-
             // Loading State
             if (_isLoading)
-              const SliverToBoxAdapter(
+              SliverToBoxAdapter(
                 child: Center(
                   child: Padding(
-                    padding: EdgeInsets.all(40),
-                    child: CircularProgressIndicator(color: Colors.white),
+                    padding: const EdgeInsets.all(40),
+                    child: CircularProgressIndicator(
+                      color: AppTheme.accentTeal,
+                    ),
+                  ),
+                ),
+              ),
+
+            // Empty / Error State
+            if (!_isLoading && _analyticsData.isEmpty)
+              SliverFillRemaining(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accentTealLight,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            LucideIcons.barChart2,
+                            size: 48,
+                            color: AppTheme.accentTeal,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'No Analytics Data',
+                          style: TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Could not load analytics.\nMake sure the backend server is running and regions are set up.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 14,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        ElevatedButton.icon(
+                          onPressed: () => _loadAnalytics(force: true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.accentTeal,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(LucideIcons.refreshCw, size: 18),
+                          label: const Text(
+                            'Try Again',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -240,34 +515,34 @@ class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppTheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
+        border: Border.all(color: AppTheme.borderColor),
+        boxShadow: AppTheme.cardShadow,
       ),
       child: DropdownButton<String>(
         value: _selectedRegionId,
-        hint: const Text(
+        hint: Text(
           'All Regions',
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: AppTheme.textSecondary),
         ),
-        dropdownColor: const Color(0xFF1E293B),
+        dropdownColor: AppTheme.surface,
         underline: const SizedBox(),
         isExpanded: true,
-        icon: const Icon(LucideIcons.chevronDown, color: Colors.white70, size: 20),
-        style: const TextStyle(color: Colors.white),
+        icon: Icon(LucideIcons.chevronDown,
+            color: AppTheme.textSecondary, size: 20),
+        style: TextStyle(color: AppTheme.textPrimary),
         items: [
-          const DropdownMenuItem(
+          DropdownMenuItem(
             value: null,
-            child: Text('All Regions', style: TextStyle(color: Colors.white)),
+            child: Text('All Regions',
+                style: TextStyle(color: AppTheme.textPrimary)),
           ),
           ..._regions.map((region) => DropdownMenuItem(
                 value: region['id'].toString(),
                 child: Text(
                   '${region['name']} - ${region['district']}',
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: AppTheme.textPrimary),
                 ),
               )),
         ],
@@ -281,7 +556,6 @@ class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
 
   Widget _buildPeriodSelector() {
     final periods = ['24 Hours', '7 Days', '30 Days'];
-
     return Row(
       children: periods.map((period) {
         final isSelected = _selectedPeriod == period;
@@ -293,27 +567,29 @@ class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
                 setState(() => _selectedPeriod = period);
                 _loadAnalytics();
               },
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFF3B82F6)
-                      : const Color(0xFF1E293B),
+                  color: isSelected ? AppTheme.accentTeal : AppTheme.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isSelected
-                        ? const Color(0xFF3B82F6)
-                        : Colors.white.withOpacity(0.1),
+                        ? AppTheme.accentTeal
+                        : AppTheme.borderColor,
                     width: 1.5,
                   ),
+                  boxShadow:
+                      isSelected ? AppTheme.tealShadow : AppTheme.cardShadow,
                 ),
                 child: Text(
                   period,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                        fontSize: 11,
-                      ),
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : AppTheme.textSecondary,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontSize: 12,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -325,52 +601,53 @@ class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
   }
 
   Widget _buildStatsCards() {
-    final avgRainfall = _analyticsData['avg_rainfall'] ?? 0;
-    final highRiskCount = _analyticsData['high_risk_count'] ?? 0;
-    
+    final highRiskCount = (_analyticsData['high_count'] ?? 0) +
+        (_analyticsData['critical_count'] ?? 0);
+    final totalRegions = _analyticsData['total_regions'] ?? 0;
+    final totalAlerts = _analyticsData['total_alerts'] ?? 0;
+
     return Row(
       children: [
         Expanded(
           child: _StatCard(
-            icon: LucideIcons.trendingUp,
-            label: 'Avg Rainfall',
-            value: '${avgRainfall}mm',
-            change: 'Live',
+            icon: LucideIcons.alertTriangle,
+            label: 'High Risk Areas',
+            value: '$highRiskCount / $totalRegions',
+            change: 'Active',
             changePositive: null,
-            color: const Color(0xFF3B82F6),
+            color: const Color(0xFFF59E0B),
           ),
         ),
         const SizedBox(width: AppTheme.spacingMedium),
         Expanded(
           child: _StatCard(
-            icon: LucideIcons.alertTriangle,
-            label: 'High Risk Areas',
-            value: '$highRiskCount',
-            change: 'Active',
+            icon: LucideIcons.bellRing,
+            label: 'Total Alerts',
+            value: '$totalAlerts',
+            change: 'Period',
             changePositive: null,
-            color: const Color(0xFFF59E0B),
+            color: AppTheme.accentTeal,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildRainfallChart() {
-    final rainfallData = (_analyticsData['rainfall_trend'] as List<dynamic>?)
-            ?.map<double>((e) => (e as num).toDouble())
-            .toList() ??
-        [];
-    final labels = _generateLabels(rainfallData.length);
+  Widget _buildAlertsChart() {
+    final rawData = _analyticsData['alerts_per_day'] as List<dynamic>?;
+    final backendLabels = _analyticsData['labels'] as List<dynamic>?;
+    final chartData =
+        rawData?.map<double>((e) => (e as num).toDouble()).toList() ?? [];
+    final labels = backendLabels?.map((e) => e.toString()).toList() ??
+        _generateLabels(chartData.length);
 
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingLarge),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppTheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
+        boxShadow: AppTheme.cardShadow,
+        border: Border.all(color: AppTheme.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -380,38 +657,39 @@ class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withOpacity(0.2),
+                  color: AppTheme.accentTealLight,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(
-                  LucideIcons.cloudRain,
-                  color: Color(0xFF3B82F6),
+                child: Icon(
+                  LucideIcons.bellRing,
+                  color: AppTheme.accentTeal,
                   size: 20,
                 ),
               ),
               const SizedBox(width: AppTheme.spacingSmall),
               Text(
-                'Rainfall ($periodName)',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                'Alerts per Day ($periodName)',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
               ),
             ],
           ),
           const SizedBox(height: AppTheme.spacingLarge),
           SizedBox(
             height: 200,
-            child: rainfallData.isNotEmpty
+            child: chartData.isNotEmpty
                 ? _BarChart(
-                    data: rainfallData,
+                    data: chartData,
                     labels: labels,
-                    color: const Color(0xFF3B82F6),
+                    color: AppTheme.accentTeal,
                   )
-                : const Center(
+                : Center(
                     child: Text(
-                      'No data available',
-                      style: TextStyle(color: Colors.white54),
+                      'No alert data for this period',
+                      style: TextStyle(color: AppTheme.textSecondary),
                     ),
                   ),
           ),
@@ -422,194 +700,18 @@ class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
               Container(
                 width: 12,
                 height: 12,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF3B82F6),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentTeal,
                   shape: BoxShape.circle,
                 ),
               ),
               const SizedBox(width: 6),
               Text(
-                'Daily Rainfall (mm)',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 11,
-                    ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  String get periodName => _selectedPeriod;
-
-  Widget _buildSusceptibilityChart() {
-    final riskData = (_analyticsData['risk_trend'] as List<dynamic>?)
-            ?.map<double>((e) => (e as num).toDouble())
-            .toList() ??
-        [];
-    final labels = _generateLabels(riskData.length);
-
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingLarge),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  LucideIcons.mountain,
-                  color: Color(0xFFF59E0B),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: AppTheme.spacingSmall),
-              Text(
-                'Risk Index ($periodName)',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppTheme.spacingLarge),
-          SizedBox(
-            height: 200,
-            child: riskData.isNotEmpty
-                ? _LineChart(
-                    data: riskData,
-                    labels: labels,
-                    color: const Color(0xFFF59E0B),
-                  )
-                : const Center(
-                    child: Text(
-                      'No data available',
-                      style: TextStyle(color: Colors.white54),
-                    ),
-                  ),
-          ),
-          const SizedBox(height: AppTheme.spacingMedium),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 12,
-                height: 3,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF59E0B),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Susceptibility Score (0-100)',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 11,
-                    ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final String change;
-  final bool? changePositive;
-  final Color color;
-
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.change,
-    required this.changePositive,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingMedium),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: AppTheme.spacingSmall),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.white.withOpacity(0.6),
+                'Number of Alerts per Day',
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
                   fontSize: 11,
                 ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    value,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: changePositive == null
-                      ? Colors.blue.withOpacity(0.2)
-                      : (changePositive!
-                          ? Colors.green.withOpacity(0.2)
-                          : Colors.red.withOpacity(0.2)),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  change,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: changePositive == null
-                            ? Colors.blue
-                            : (changePositive! ? Colors.green : Colors.red),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
               ),
             ],
           ),
@@ -617,222 +719,6 @@ class _StatCard extends StatelessWidget {
       ),
     );
   }
-}
 
-class _BarChart extends StatelessWidget {
-  final List<double> data;
-  final List<String> labels;
-  final Color color;
-
-  const _BarChart({
-    required this.data,
-    required this.labels,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (data.isEmpty) return const SizedBox();
-    final maxValue = data.reduce((a, b) => a > b ? a : b);
-    final showValueLabels = data.length <= 10;
-
-    return Column(
-      children: [
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(data.length, (index) {
-                  final value = data[index];
-                  final normalizedHeight = maxValue > 0
-                      ? (value / maxValue) * constraints.maxHeight
-                      : 0.0;
-
-                  return Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: data.length > 10 ? 1 : 4),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          if (showValueLabels) ...[
-                            Text(
-                              '${value.toInt()}',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                            const SizedBox(height: 4),
-                          ],
-                          Container(
-                            height: showValueLabels 
-                                ? normalizedHeight - 20 
-                                : normalizedHeight,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.bottomCenter,
-                                end: Alignment.topCenter,
-                                colors: [color.withOpacity(0.8), color],
-                              ),
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(4),
-                              ),
-                            ),
-                          )
-                              .animate()
-                              .scaleY(
-                                begin: 0,
-                                end: 1,
-                                duration: 800.ms,
-                                delay: (index * (data.length > 10 ? 20 : 100)).ms,
-                                curve: Curves.easeOutCubic,
-                              ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: labels.map((label) {
-            return Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white.withOpacity(0.5),
-                    fontSize: 10,
-                  ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-}
-
-class _LineChart extends StatelessWidget {
-  final List<double> data;
-  final List<String> labels;
-  final Color color;
-
-  const _LineChart({
-    required this.data,
-    required this.labels,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: CustomPaint(
-            painter: _LineChartPainter(data, color),
-            size: const Size(double.infinity, double.infinity),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: labels.map((label) {
-            return Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white.withOpacity(0.5),
-                    fontSize: 10,
-                  ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-}
-
-class _LineChartPainter extends CustomPainter {
-  final List<double> data;
-  final Color color;
-
-  _LineChartPainter(this.data, this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (data.isEmpty) return;
-
-    final maxValue = data.reduce((a, b) => a > b ? a : b);
-    final minValue = data.reduce((a, b) => a < b ? a : b);
-    final range = maxValue - minValue;
-    final showDots = data.length <= 10;
-
-    // Line Paint
-    final linePaint = Paint()
-      ..color = color
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    // Fill Paint with Gradient
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [color.withOpacity(0.3), color.withOpacity(0.0)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-    final stepX = size.width / (data.length - 1);
-
-    // Calculate points
-    final points = <Offset>[];
-    for (int i = 0; i < data.length; i++) {
-      final x = i * stepX;
-      final normalizedValue = range > 0 ? (data[i] - minValue) / range : 0.5;
-      final y = size.height - (normalizedValue * size.height);
-      points.add(Offset(x, y));
-    }
-
-    // Draw Smooth Path (Quadratic Bezier)
-    path.moveTo(points[0].dx, points[0].dy);
-    for (int i = 0; i < points.length - 1; i++) {
-      final p0 = points[i];
-      final p1 = points[i + 1];
-      final controlPoint = Offset(p0.dx + (p1.dx - p0.dx) / 2, p0.dy);
-      final endPoint = Offset(p0.dx + (p1.dx - p0.dx) / 2, p1.dy);
-      // Simple smoothing: using midpoints. 
-      // Better: Cubic to or just connect cleanly. 
-      // Let's use simple straight lines for accuracy but without dots for clutter, 
-      // OR use a Catmull-Rom like simplified approach.
-      // For now, let's stick to straight lines but cleaner, as simple smoothing often overshoots.
-      path.lineTo(p1.dx, p1.dy); 
-    }
-    
-    // Create fill path
-    final fillPath = Path.from(path);
-    fillPath.lineTo(size.width, size.height);
-    fillPath.lineTo(0, size.height);
-    fillPath.close();
-
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, linePaint);
-
-    // Points (Only if sparse)
-    if (showDots) {
-      for (final point in points) {
-        canvas.drawCircle(point, 5, Paint()..color = color);
-        canvas.drawCircle(point, 3, Paint()..color = const Color(0xFF1E293B));
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 

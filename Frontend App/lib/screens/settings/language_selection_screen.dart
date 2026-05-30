@@ -1,88 +1,111 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
 import 'package:frontend_app/theme/app_theme.dart';
+import 'package:frontend_app/providers/language_provider.dart';
+import 'package:frontend_app/theme/theme_provider.dart';
 
 /// Language Selection Screen - English/Urdu Toggle
-/// Interface for changing app language
 class LanguageSelectionScreen extends StatefulWidget {
   const LanguageSelectionScreen({super.key});
 
   @override
-  State<LanguageSelectionScreen> createState() => _LanguageSelectionScreenState();
+  State<LanguageSelectionScreen> createState() =>
+      _LanguageSelectionScreenState();
 }
 
 class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
-  String _selectedLanguage = 'English';
+  late String _selectedCode;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _selectedCode = context.read<LanguageProvider>().languageCode;
+  }
 
   @override
   Widget build(BuildContext context) {
+    context.watch<ThemeProvider>();
+    final langProvider = context.watch<LanguageProvider>();
+
     return Scaffold(
-      backgroundColor: AppTheme.surfaceGrey,
+      // Light warm-white scaffold background
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryColor,
-        title: const Text('Language'),
+        // White AppBar with dark text
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.textPrimary,
+        title: Text(
+          langProvider.language,
+          style: TextStyle(color: AppTheme.textPrimary),
+        ),
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
       ),
       body: Padding(
         padding: const EdgeInsets.all(AppTheme.spacingLarge),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Select your preferred language',
+            Text(
+              langProvider.selectLanguage,
               style: TextStyle(
                 fontSize: 16,
                 color: AppTheme.textSecondary,
               ),
             ),
             const SizedBox(height: AppTheme.spacingLarge),
-
-            // English Option
             _buildLanguageCard(
-              'English',
-              'English',
-              '🇬🇧',
-              0,
+              code: 'en',
+              language: langProvider.english,
+              nativeName: 'English',
+              badge: 'EN',
+              index: 0,
             ),
-
             const SizedBox(height: AppTheme.spacingMedium),
-
-            // Urdu Option
             _buildLanguageCard(
-              'Urdu',
-              'اردو',
-              '🇵🇰',
-              1,
+              code: 'ur',
+              language: langProvider.urdu,
+              nativeName: 'اردو',
+              badge: 'UR',
+              index: 1,
             ),
-
             const Spacer(),
-
-            // Apply Button
-            Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF3B82F6), Color(0xFF06B6D4)],
-                ),
-                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-              ),
-              child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('✓ Language changed to $_selectedLanguage'),
-                      backgroundColor: Colors.green,
+            // Apply button — solid accentTeal background
+            ElevatedButton(
+              onPressed: () async {
+                await context
+                    .read<LanguageProvider>()
+                    .setLanguage(_selectedCode);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      _selectedCode == 'ur'
+                          ? 'زبان اردو میں تبدیل ہوگئی'
+                          : 'Language changed to English',
                     ),
-                  );
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.accentTeal,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                 ),
-                child: const Text(
-                  'Apply',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                elevation: 0,
+              ),
+              child: Text(
+                langProvider.apply,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
             )
@@ -95,46 +118,48 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
     );
   }
 
-  Widget _buildLanguageCard(
-    String language,
-    String nativeName,
-    String flag,
-    int index,
-  ) {
-    final isSelected = _selectedLanguage == language;
+  Widget _buildLanguageCard({
+    required String code,
+    required String language,
+    required String nativeName,
+    required String badge,
+    required int index,
+  }) {
+    final isSelected = _selectedCode == code;
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedLanguage = language),
+      onTap: () => setState(() => _selectedCode = code),
       child: Container(
         padding: const EdgeInsets.all(AppTheme.spacingLarge),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppTheme.surface,
           borderRadius: BorderRadius.circular(AppTheme.cardRadius),
           border: Border.all(
-            color: isSelected ? AppTheme.accentBlue : Colors.grey.shade300,
+            // Teal selected indicator border
+            color: isSelected ? AppTheme.accentTeal : AppTheme.borderColor,
             width: isSelected ? 2 : 1,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppTheme.accentBlue.withOpacity(0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 5,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+          boxShadow: isSelected ? AppTheme.tealShadow : AppTheme.cardShadow,
         ),
         child: Row(
           children: [
-            Text(
-              flag,
-              style: const TextStyle(fontSize: 40),
+            Container(
+              width: 48,
+              height: 48,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                // Teal icon container
+                color: AppTheme.accentTealLight,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                badge,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.accentTeal,
+                ),
+              ),
             ),
             const SizedBox(width: AppTheme.spacingMedium),
             Expanded(
@@ -146,12 +171,13 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: isSelected ? AppTheme.accentBlue : AppTheme.textPrimary,
+                      color:
+                          isSelected ? AppTheme.accentTeal : AppTheme.textPrimary,
                     ),
                   ),
                   Text(
                     nativeName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       color: AppTheme.textSecondary,
                     ),
@@ -159,10 +185,11 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                 ],
               ),
             ),
+            // Teal checkmark for selected language
             if (isSelected)
-              const Icon(
+              Icon(
                 LucideIcons.checkCircle2,
-                color: AppTheme.accentBlue,
+                color: AppTheme.accentTeal,
                 size: 28,
               ),
           ],
@@ -174,4 +201,3 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
     );
   }
 }
-

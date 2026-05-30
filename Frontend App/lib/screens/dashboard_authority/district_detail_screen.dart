@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:frontend_app/theme/app_theme.dart';
+import 'package:frontend_app/theme/theme_provider.dart';
+import 'package:provider/provider.dart';
 
 /// District Detail Screen - Drill-down View for Specific Area
 /// Comprehensive district information with metrics and history
@@ -10,28 +12,34 @@ class DistrictDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<ThemeProvider>();
     return Scaffold(
-      backgroundColor: AppTheme.surfaceGrey,
+      backgroundColor: AppTheme.background,
       body: CustomScrollView(
         slivers: [
-          // App Bar with Gradient
+          // App Bar — light surface, dark text
           SliverAppBar(
             expandedHeight: 200,
             pinned: true,
+            backgroundColor: AppTheme.surface,
+            foregroundColor: AppTheme.textPrimary,
+            surfaceTintColor: Colors.transparent,
             flexibleSpace: FlexibleSpaceBar(
-              title: const Text(
+              title: Text(
                 'Murree District',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                 ),
               ),
+              titlePadding: const EdgeInsetsDirectional.only(start: 16, bottom: 16),
               background: Container(
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
+                  // Teal gradient banner replaces dark blue gradient
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFF3B82F6), Color(0xFF06B6D4)],
+                    colors: [AppTheme.accentTeal, Color(0xFF1A5C54)],
                   ),
                 ),
                 child: Stack(
@@ -88,11 +96,12 @@ class DistrictDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Key Metrics',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingMedium),
@@ -114,11 +123,12 @@ class DistrictDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Recent History',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingMedium),
@@ -138,6 +148,7 @@ class DistrictDetailScreen extends StatelessWidget {
   }
 
   Widget _buildRiskScoreCard() {
+    // Risk score card — intentionally keeps red danger gradient (danger semantic)
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingXLarge),
       decoration: BoxDecoration(
@@ -207,7 +218,7 @@ class DistrictDetailScreen extends StatelessWidget {
             icon: LucideIcons.users,
             label: 'Population',
             value: '1.2M',
-            color: Colors.blue,
+            color: AppTheme.accentTeal,
           ),
         ),
         const SizedBox(width: AppTheme.spacingMedium),
@@ -216,7 +227,7 @@ class DistrictDetailScreen extends StatelessWidget {
             icon: LucideIcons.cloudRain,
             label: 'Rainfall',
             value: '52mm',
-            color: Colors.cyan,
+            color: AppTheme.accentTeal,
           ),
         ),
       ],
@@ -272,11 +283,18 @@ class _MetricCard extends StatelessWidget {
       decoration: AppTheme.bentoCardLight,
       child: Column(
         children: [
-          Icon(icon, color: color, size: 32),
+          Container(
+            padding: const EdgeInsets.all(AppTheme.spacingSmall),
+            decoration: BoxDecoration(
+              color: AppTheme.accentTealLight,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 28),
+          ),
           const SizedBox(height: AppTheme.spacingSmall),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               color: AppTheme.textSecondary,
             ),
@@ -284,9 +302,10 @@ class _MetricCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
+              color: AppTheme.textPrimary,
             ),
           ),
         ],
@@ -336,7 +355,7 @@ class _TimelineEvent extends StatelessWidget {
                 children: [
                   Text(
                     date,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       color: AppTheme.textSecondary,
                     ),
@@ -344,15 +363,16 @@ class _TimelineEvent extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     description,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppTheme.textSecondary,
                     ),
@@ -366,4 +386,3 @@ class _TimelineEvent extends StatelessWidget {
     );
   }
 }
-

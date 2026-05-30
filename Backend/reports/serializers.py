@@ -8,16 +8,30 @@ class IncidentReportSerializer(serializers.ModelSerializer):
     Serializer for incident reports.
     """
     user_name = serializers.CharField(source='user.username', read_only=True)
-    region_name = serializers.CharField(source='region.name', read_only=True)
-    region_district = serializers.CharField(source='region.district', read_only=True)
+    region_name = serializers.SerializerMethodField()
+    region_district = serializers.SerializerMethodField()
     
     class Meta:
         model = IncidentReport
         fields = [
             'id', 'user', 'user_name', 'region', 'region_name', 'region_district',
-            'description', 'image', 'timestamp', 'is_verified'
+            'description', 'latitude', 'longitude', 'area_name', 'image',
+            'report_radius_km', 'timestamp', 'is_verified'
         ]
-        read_only_fields = ['id', 'user', 'timestamp', 'is_verified', 'user_name', 'region_name', 'region_district']
+        read_only_fields = [
+            'id', 'user', 'timestamp', 'is_verified', 'user_name',
+            'region_name', 'region_district'
+        ]
+
+    def get_region_name(self, obj):
+        if obj.region:
+            return obj.region.name
+        return obj.area_name or 'Your Location'
+
+    def get_region_district(self, obj):
+        if obj.region:
+            return obj.region.district
+        return '50 km radius'
 
 
 class SafetyStatusSerializer(serializers.ModelSerializer):

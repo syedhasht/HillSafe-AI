@@ -3,7 +3,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/services/api_service.dart';
-import 'package:intl/intl.dart';
+import 'package:frontend_app/theme/theme_provider.dart';
+import 'package:provider/provider.dart';
 
 /// Alert Feed Screen - Community Alert History
 /// Chronological list of all alerts with filtering
@@ -15,7 +16,6 @@ class AlertFeedScreen extends StatefulWidget {
 }
 
 class _AlertFeedScreenState extends State<AlertFeedScreen> {
-  String _filterSeverity = 'All';
   final ApiService _apiService = ApiService();
   late Future<List<Map<String, dynamic>>> _alertsFuture;
 
@@ -33,36 +33,23 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<ThemeProvider>();
     return Scaffold(
-      backgroundColor: AppTheme.surfaceGrey,
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: RefreshIndicator(
+          color: AppTheme.accentTeal,
           onRefresh: () async => _refreshAlerts(),
           child: CustomScrollView(
             slivers: [
               // App Bar
               SliverAppBar(
                 floating: true,
-                backgroundColor: AppTheme.primaryColor,
-                title: const Text('Alert History'),
-                foregroundColor: Colors.white,
-                actions: [
-                  IconButton(
-                    icon: const Icon(LucideIcons.filter),
-                    onPressed: () {},
-                  ),
-                ],
-              ),
-
-              // Filter Chips
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppTheme.spacingMedium),
-                  child: _buildFilterChips()
-                      .animate()
-                      .fadeIn(duration: 600.ms)
-                      .slideY(begin: -0.1, end: 0),
-                ),
+                backgroundColor: AppTheme.surface,
+                title: Text('Alert History',
+                    style: TextStyle(color: AppTheme.textPrimary)),
+                foregroundColor: AppTheme.textPrimary,
+                actions: [],
               ),
 
               // Alert List
@@ -71,7 +58,11 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const SliverFillRemaining(
-                      child: Center(child: CircularProgressIndicator()),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AppTheme.accentTeal,
+                        ),
+                      ),
                     );
                   }
 
@@ -81,20 +72,27 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
                     );
                   }
 
-                  final alerts = snapshot.data ?? [];
-                  
-                  // Apply Filter
-                  final filteredAlerts = alerts.where((alert) {
-                    if (_filterSeverity == 'All') return true;
-                    
-                    final severity = (alert['severity'] as String).toUpperCase();
-                    var filterKey = _filterSeverity.toUpperCase();
-                    if (_filterSeverity == 'Moderate') filterKey = 'MEDIUM';
-                    
-                    return severity == filterKey;
-                  }).toList();
+                  final allAlerts = snapshot.data ?? [];
 
-                  if (filteredAlerts.isEmpty) {
+                  // Keep only the latest alert per region
+                  final regionMap = <dynamic, Map<String, dynamic>>{};
+                  for (final alert in allAlerts) {
+                    final regionId = alert['region'];
+                    final existing = regionMap[regionId];
+                    final ts = DateTime.tryParse(alert['timestamp'] ?? '');
+                    final existingTs = existing != null ? DateTime.tryParse(existing['timestamp'] ?? '') : null;
+                    if (ts != null && (existingTs == null || ts.isAfter(existingTs))) {
+                      regionMap[regionId] = alert;
+                    }
+                  }
+                  final alerts = regionMap.values.toList()
+                    ..sort((a, b) {
+                      final ta = DateTime.tryParse(a['timestamp'] ?? '');
+                      final tb = DateTime.tryParse(b['timestamp'] ?? '');
+                      return (tb?.millisecondsSinceEpoch ?? 0).compareTo(ta?.millisecondsSinceEpoch ?? 0);
+                    });
+
+                  if (alerts.isEmpty) {
                     return const SliverFillRemaining(
                       child: Center(child: Text('No alerts found')),
                     );
@@ -105,10 +103,10 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
-                           final alert = filteredAlerts[index];
+                           final alert = alerts[index];
                            return _buildAlertCard(alert, index);
                         },
-                        childCount: filteredAlerts.length,
+                        childCount: alerts.length,
                       ),
                     ),
                   );
@@ -117,46 +115,6 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildFilterChips() {
-    final filters = ['All', 'Critical', 'High', 'Moderate', 'Low'];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: filters.map((filter) {
-          final isSelected = _filterSeverity == filter;
-          return Padding(
-            padding: const EdgeInsets.only(right: AppTheme.spacingSmall),
-            child: GestureDetector(
-              onTap: () => setState(() => _filterSeverity = filter),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppTheme.spacingMedium,
-                  vertical: AppTheme.spacingSmall,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppTheme.primaryColor : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isSelected ? AppTheme.primaryColor : Colors.grey.shade300,
-                  ),
-                ),
-                child: Text(
-                  filter,
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : AppTheme.textPrimary,
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
       ),
     );
   }
@@ -205,14 +163,15 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
                         Text(
                           severity == 'MEDIUM' ? 'Moderate Alert' :
                           '${severity.substring(0, 1)}${severity.substring(1).toLowerCase()} Alert',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary,
                           ),
                         ),
                         Text(
                           '${alert['region_name'] ?? 'Unknown Region'}, ${alert['region_district'] ?? ''}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             color: AppTheme.textSecondary,
                           ),
@@ -245,7 +204,7 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
               const SizedBox(height: AppTheme.spacingSmall),
               Text(
                 alert['message'] ?? 'No details available.',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   color: AppTheme.textSecondary,
                 ),
@@ -255,17 +214,17 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
               const SizedBox(height: AppTheme.spacingSmall),
               Row(
                 children: [
-                   const Icon(LucideIcons.clock, size: 12, color: AppTheme.textSecondary),
+                   Icon(LucideIcons.clock, size: 12, color: AppTheme.textSecondary),
                    const SizedBox(width: 4),
                    Text(
                     timeAgo,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       color: AppTheme.textSecondary,
                     ),
                   ),
                   const Spacer(),
-                  const Icon(LucideIcons.chevronRight, size: 16, color: AppTheme.primaryColor),
+                  Icon(LucideIcons.chevronRight, size: 16, color: AppTheme.accentTeal),
                 ],
               ),
             ],
@@ -301,4 +260,3 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
     }
   }
 }
-

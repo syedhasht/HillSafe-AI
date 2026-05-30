@@ -32,6 +32,7 @@ except Exception as e:
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = "django-insecure-mse6374_ut*o8efo!))nhex_5x^=#@6)b1u*=e5z09-_cq%v&a"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True") == "True"
@@ -59,6 +60,7 @@ INSTALLED_APPS = [
     "alerts",
     "data_ingestion",
     "reports",
+    "safety",
     "ml_engine",
 ]
 
@@ -112,6 +114,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DATETIME_FORMAT': 'iso-8601',
 }
 
 
@@ -134,15 +137,15 @@ REST_FRAMEWORK = {
 # }
 
 # Database Configuration
-# Uses PostgreSQL on Render (RENDER env var is auto-set by Render), SQLite locally
-if os.getenv("RENDER"):
+# Uses PostgreSQL when DB_NAME is configured, otherwise SQLite for quick local runs.
+if os.getenv("DB_NAME"):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
             "NAME": os.getenv("DB_NAME"),
-            "USER": os.getenv("DB_USER"),
+            "USER": os.getenv("DB_USER", "postgres"),
             "PASSWORD": os.getenv("DB_PASSWORD"),
-            "HOST": os.getenv("DB_HOST"),
+            "HOST": os.getenv("DB_HOST", "localhost"),
             "PORT": os.getenv("DB_PORT", "5432"),
         }
     }
@@ -179,7 +182,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Karachi"
 
 USE_I18N = True
 

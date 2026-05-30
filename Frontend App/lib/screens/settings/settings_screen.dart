@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/theme/theme_provider.dart';
 import 'package:frontend_app/providers/user_provider.dart';
 import 'package:frontend_app/providers/language_provider.dart';
+import 'package:frontend_app/services/api_service.dart';
+import 'package:frontend_app/screens/settings/privacy_policy_screen.dart';
 
 /// Settings Screen - App Configuration
 class SettingsScreen extends StatefulWidget {
@@ -17,58 +19,127 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
-  bool _smsAlertsEnabled = true;
   bool _locationEnabled = true;
 
-  void _showEditNameDialog() {
-    final controller = TextEditingController(
-      text: context.read<UserProvider>().username,
-    );
-    
-    showDialog(
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final userProv = context.read<UserProvider>();
+      await userProv.refreshProfileFromDb();
+      if (!mounted) return;
+      if (userProv.userType == 'authority') {
+        final langProv = context.read<LanguageProvider>();
+        if (langProv.languageCode != 'en') {
+          await langProv.setLanguage('en');
+        }
+      }
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<void> _showEditProfileDialog() async {
+    final langProvider = context.read<LanguageProvider>();
+    final userProvider = context.read<UserProvider>();
+
+    final result = await showDialog<Map<String, String>>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Name'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Your Name',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await context.read<UserProvider>().updateUsername(controller.text);
-              if (mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Name updated successfully')),
-                );
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
+      builder: (dialogContext) => _EditProfileDialog(
+        langProvider: langProvider,
+        initialName: userProvider.username,
+        initialEmail: userProvider.email,
+        initialPhone: _normalizeProfilePhone(userProvider.phoneNumber),
+        normalizePhone: _normalizeProfilePhone,
+        isValidPhone: _isValidPakistanPhone,
+        protectPhonePrefix: _protectPakistanPhonePrefix,
+        movePhoneCursorAfterPrefix: _movePhoneCursorAfterPrefix,
       ),
     );
+
+    if (result == null || !mounted) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(milliseconds: 450), () async {
+        if (!mounted) return;
+
+        final success = await userProvider.updateProfile(
+          name: result['name'] ?? '',
+          email: result['email'] ?? '',
+          phoneNumber: result['phoneNumber'] ?? '',
+          notify: false,
+        );
+
+        if (!mounted) return;
+        if (success) setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success
+                ? langProvider.tr('Profile updated successfully')
+                : langProvider.tr('Could not update profile')),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+      });
+    });
+  }
+
+  String _normalizeProfilePhone(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    final withoutCountry = digits.startsWith('92') ? digits.substring(2) : digits;
+    final local = withoutCountry.length > 10
+        ? withoutCountry.substring(withoutCountry.length - 10)
+        : withoutCountry;
+    if (local.isEmpty) return '+92 ';
+    if (local.length > 10) {
+      final trimmed = local.substring(0, 10);
+      return '+92 ${trimmed.substring(0, 3)}-${trimmed.substring(3)}';
+    }
+    if (local.length <= 3) return '+92 $local';
+    return '+92 ${local.substring(0, 3)}-${local.substring(3)}';
+  }
+
+  void _movePhoneCursorAfterPrefix(TextEditingController controller) {
+    if (controller.selection.baseOffset < 4) {
+      controller.selection = const TextSelection.collapsed(offset: 4);
+    }
+  }
+
+  bool _isValidPakistanPhone(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    final local = digits.startsWith('92') ? digits.substring(2) : digits;
+    return local.length == 10;
+  }
+
+  void _protectPakistanPhonePrefix(TextEditingController controller) {
+    const prefix = '+92 ';
+    final text = controller.text;
+    final formatted = _normalizeProfilePhone(text);
+
+    if (text != formatted) {
+      final oldOffset = controller.selection.baseOffset;
+      final safeOffset = oldOffset < prefix.length
+          ? prefix.length
+          : formatted.length.clamp(prefix.length, formatted.length);
+      controller.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: safeOffset),
+      );
+      return;
+    }
+
+    _movePhoneCursorAfterPrefix(controller);
   }
 
   void _showLogoutDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Log Out'),
-        content: const Text('Are you sure you want to log out?'),
+        title: Text(context.watch<LanguageProvider>().tr('Log Out')),
+        content: Text(context.watch<LanguageProvider>().tr('Are you sure you want to log out?')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(context.read<LanguageProvider>().tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -81,7 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Log Out'),
+            child: Text(context.read<LanguageProvider>().tr('Log Out')),
           ),
         ],
       ),
@@ -100,9 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.dark 
-                      ? const Color(0xFF1E293B) // Keep dark navy but ensured high contrast
-                      : AppTheme.primaryColor,
+                  color: AppTheme.primaryDark,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(12),
                     topRight: Radius.circular(12),
@@ -159,7 +228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const TextSpan(text: '4. Location Permissions\n', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                         const TextSpan(text: '\nBackground tracking enables 2-hour risk assessments.\n\n'),
                         const TextSpan(text: '5. Contact\n', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        const TextSpan(text: '\nhillsafeai@gmail.com', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.blue)),
+                        const TextSpan(text: '\nhillsafeai@gmail.com', style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.accentTeal)),
                       ],
                     ),
                   ),
@@ -172,11 +241,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(context),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      backgroundColor: AppTheme.accentTeal,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       foregroundColor: Colors.white,
                     ),
-                    child: const Text('Close'),
+                    child: Text(context.read<LanguageProvider>().tr('Close')),
                   ),
                 ),
               ),
@@ -188,57 +257,87 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showHelpSupportDialog() {
-    final theme = Theme.of(context);
-    final primary = theme.colorScheme.primary;
-    
+    const supportEmail = 'support@hillsafeai.com';
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        contentPadding: const EdgeInsets.fromLTRB(24, 18, 24, 8),
         title: Row(
           children: [
-            Icon(LucideIcons.helpCircle, color: primary),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppTheme.accentTealLight,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(LucideIcons.headphones, color: AppTheme.accentTeal),
+            ),
             const SizedBox(width: 12),
-            const Text('Help & Support'),
+            Expanded(
+              child: Text(
+                context.watch<LanguageProvider>().tr('Help & Support'),
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Need assistance? We\'re here to help!', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 20),
-            const Text('Contact Us:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            const SizedBox(height: 8),
+            Text(
+              context.watch<LanguageProvider>().tr('Need assistance? We are here to help.'),
+              style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
+            ),
+            const SizedBox(height: 18),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: primary.withOpacity(0.3)),
+                color: AppTheme.background,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.borderColor),
               ),
               child: Row(
                 children: [
-                  Icon(LucideIcons.mail, color: primary, size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SelectableText(
-                      'hillsafeai@gmail.com',
-                      style: TextStyle(
-                        fontSize: 15, 
-                        color: primary, 
-                        fontWeight: FontWeight.w600
-                      ),
+                  const Icon(LucideIcons.mail, color: AppTheme.accentTeal, size: 20),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      supportEmail,
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                      overflow: TextOverflow.ellipsis,
                     ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () async {
+                      await Clipboard.setData(const ClipboardData(text: supportEmail));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Support email copied')),
+                        );
+                      }
+                    },
+                    icon: const Icon(LucideIcons.copy, size: 16),
+                    label: Text(context.read<LanguageProvider>().tr('Copy Email')),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            const Text('We typically respond within 24-48 hours.', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+            Text(
+              context.watch<LanguageProvider>().tr('We typically respond within 24-48 hours.'),
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.read<LanguageProvider>().tr('Close')),
+          ),
         ],
       ),
     );
@@ -246,14 +345,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = context.watch<UserProvider>();
+    final themeProvider = context.watch<ThemeProvider>();
+    final userProvider = context.read<UserProvider>();
     final langProvider = context.watch<LanguageProvider>();
     
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      key: ValueKey(
+        themeProvider.isDarkMode ? 'settings-dark' : 'settings-light',
+      ),
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryColor,
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.textPrimary,
         title: Text(langProvider.settings),
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppTheme.spacingLarge),
@@ -261,47 +366,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Profile Section
-            _buildProfileCard(userProvider.username)
-                .animate()
-                .fadeIn(duration: 600.ms)
-                .slideY(begin: 0.1, end: 0),
+            _buildProfileCard(userProvider),
 
             const SizedBox(height: AppTheme.spacingLarge),
 
-            // Notifications Section
+            // Notifications Section header
             Text(
               langProvider.notifications,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textSecondary,
+                letterSpacing: 0.5,
               ),
             ),
             const SizedBox(height: AppTheme.spacingMedium),
-            _buildNotificationSettings()
-                .animate()
-                .fadeIn(duration: 600.ms, delay: 200.ms),
+            _buildNotificationSettings(),
 
             const SizedBox(height: AppTheme.spacingLarge),
 
-            // Preferences Section
-            const Text(
-              'Preferences',
+            // Preferences Section header
+            Text(
+              langProvider.tr('Preferences'),
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textSecondary,
+                letterSpacing: 0.5,
               ),
             ),
             const SizedBox(height: AppTheme.spacingMedium),
-            _buildPreferencesSettings()
-                .animate()
-                .fadeIn(duration: 600.ms, delay: 400.ms),
+            _buildPreferencesSettings(themeProvider),
 
             const SizedBox(height: AppTheme.spacingLarge),
 
             // About Section
-            _buildAboutLinks()
-                .animate()
-                .fadeIn(duration: 600.ms, delay: 600.ms),
+            _buildAboutLinks(),
 
             const SizedBox(height: AppTheme.spacingLarge),
 
@@ -318,21 +418,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
               ),
-            )
-                .animate()
-                .fadeIn(duration: 600.ms, delay: 800.ms)
-                .scale(begin: const Offset(0.9, 0.9)),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildProfileCard(String username) {
+  Widget _buildProfileCard(UserProvider userProvider) {
+    final username = userProvider.username;
+    final phoneNumber = userProvider.phoneNumber.isEmpty
+        ? 'No phone number'
+        : userProvider.phoneNumber;
+    final email = userProvider.email.isEmpty
+        ? 'Add email address'
+        : userProvider.email;
+
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingLarge),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: AppTheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.cardRadius),
         boxShadow: AppTheme.cardShadow,
       ),
@@ -342,9 +447,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark 
-                  ? const Color(0xFF3B82F6) 
-                  : AppTheme.primaryColor,
+              color: AppTheme.accentTeal,
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -365,26 +468,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Text(
                   username,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'john.doe@example.com',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textSecondary,
-                  ),
+                Row(
+                  children: [
+                    Icon(
+                      LucideIcons.phone,
+                      size: 13,
+                      color: AppTheme.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        phoneNumber,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      LucideIcons.mail,
+                      size: 13,
+                      color: AppTheme.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        email,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: userProvider.email.isEmpty
+                              ? AppTheme.accentTeal
+                              : AppTheme.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(LucideIcons.pencil, size: 20),
-            onPressed: _showEditNameDialog,
-            tooltip: 'Edit Name',
+            icon: Icon(LucideIcons.pencil, size: 20, color: AppTheme.textSecondary),
+            onPressed: _showEditProfileDialog,
+            tooltip: context.read<LanguageProvider>().tr('Edit Profile'),
           ),
         ],
       ),
@@ -395,25 +535,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingMedium),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: AppTheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.cardRadius),
         boxShadow: AppTheme.cardShadow,
       ),
       child: Column(
         children: [
           SwitchListTile(
-            title: const Text('Push Notifications'),
-            subtitle: const Text('Receive alerts in the app'),
+            title: Text(context.watch<LanguageProvider>().tr('Push Notifications')),
+            subtitle: Text(context.watch<LanguageProvider>().tr('Receive alerts in the app')),
             value: _notificationsEnabled,
+            activeColor: AppTheme.accentTeal,
             onChanged: (value) => setState(() => _notificationsEnabled = value),
-            contentPadding: EdgeInsets.zero,
-          ),
-          const Divider(),
-          SwitchListTile(
-            title: const Text('SMS Alerts'),
-            subtitle: const Text('Get critical alerts via SMS'),
-            value: _smsAlertsEnabled,
-            onChanged: (value) => setState(() => _smsAlertsEnabled = value),
             contentPadding: EdgeInsets.zero,
           ),
         ],
@@ -421,43 +554,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildPreferencesSettings() {
+  Widget _buildPreferencesSettings(ThemeProvider themeProvider) {
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingMedium),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: AppTheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.cardRadius),
         boxShadow: AppTheme.cardShadow,
       ),
       child: Column(
         children: [
           SwitchListTile(
-            title: const Text('Dark Mode'),
-            subtitle: const Text('Use dark theme'),
-            value: context.watch<ThemeProvider>().isDarkMode,
-            onChanged: (value) {
+            title: Text(context.watch<LanguageProvider>().tr('Dark Mode')),
+            subtitle: Text(context.watch<LanguageProvider>().tr('Use dark theme')),
+            value: themeProvider.isDarkMode,
+            activeColor: AppTheme.accentTeal,
+            onChanged: (value) async {
               context.read<ThemeProvider>().toggleTheme(value);
+              await ApiService().updateDarkMode(value);
             },
             contentPadding: EdgeInsets.zero,
           ),
           const Divider(),
           SwitchListTile(
-            title: const Text('Location Services'),
-            subtitle: const Text('For accurate alerts'),
+            title: Text(context.watch<LanguageProvider>().tr('Location Services')),
+            subtitle: Text(context.watch<LanguageProvider>().tr('For accurate alerts')),
             value: _locationEnabled,
+            activeColor: AppTheme.accentTeal,
             onChanged: (value) => setState(() => _locationEnabled = value),
             contentPadding: EdgeInsets.zero,
           ),
-          const Divider(),
-          ListTile(
-            title: const Text('Language'),
-            subtitle: Text(
-              context.watch<LanguageProvider>().isEnglish ? 'English' : 'Urdu',
+          if (context.read<UserProvider>().userType != 'authority') ...[
+            const Divider(),
+            ListTile(
+              title: Text(context.watch<LanguageProvider>().tr('Language')),
+              subtitle: Text(
+                context.watch<LanguageProvider>().isEnglish ? 'English' : 'Urdu',
+              ),
+              trailing: Icon(LucideIcons.chevronRight, color: AppTheme.textSecondary),
+              contentPadding: EdgeInsets.zero,
+              onTap: () => Navigator.pushNamed(context, '/language_selection'),
             ),
-            trailing: const Icon(LucideIcons.chevronRight),
-            contentPadding: EdgeInsets.zero,
-            onTap: () => Navigator.pushNamed(context, '/language_selection'),
-          ),
+          ],
         ],
       ),
     );
@@ -467,32 +605,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingMedium),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: AppTheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.cardRadius),
         boxShadow: AppTheme.cardShadow,
       ),
       child: Column(
         children: [
           ListTile(
-            leading: Icon(LucideIcons.info, color: Theme.of(context).colorScheme.primary),
-            title: const Text('About HillSafe AI'),
-            trailing: const Icon(LucideIcons.chevronRight),
+            leading: const Icon(LucideIcons.info, color: AppTheme.accentTeal),
+            title: Text(context.watch<LanguageProvider>().tr('About HillSafe AI')),
+            trailing: Icon(LucideIcons.chevronRight, color: AppTheme.textSecondary),
             contentPadding: EdgeInsets.zero,
             onTap: () => Navigator.pushNamed(context, '/about'),
           ),
           const Divider(),
           ListTile(
-            leading: Icon(LucideIcons.fileText, color: Theme.of(context).colorScheme.primary),
-            title: const Text('Privacy Policy'),
-            trailing: const Icon(LucideIcons.chevronRight),
+            leading: const Icon(LucideIcons.fileText, color: AppTheme.accentTeal),
+            title: Text(context.watch<LanguageProvider>().tr('Privacy Policy')),
+            trailing: Icon(LucideIcons.chevronRight, color: AppTheme.textSecondary),
             contentPadding: EdgeInsets.zero,
-            onTap: _showPrivacyPolicyDialog,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const PrivacyPolicyScreen(),
+              ),
+            ),
           ),
           const Divider(),
           ListTile(
-            leading: Icon(LucideIcons.helpCircle, color: Theme.of(context).colorScheme.primary),
-            title: const Text('Help & Support'),
-            trailing: const Icon(LucideIcons.chevronRight),
+            leading: const Icon(LucideIcons.helpCircle, color: AppTheme.accentTeal),
+            title: Text(context.watch<LanguageProvider>().tr('Help & Support')),
+            trailing: Icon(LucideIcons.chevronRight, color: AppTheme.textSecondary),
             contentPadding: EdgeInsets.zero,
             onTap: _showHelpSupportDialog,
           ),
@@ -502,3 +645,137 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
+class _EditProfileDialog extends StatefulWidget {
+  const _EditProfileDialog({
+    required this.langProvider,
+    required this.initialName,
+    required this.initialEmail,
+    required this.initialPhone,
+    required this.normalizePhone,
+    required this.isValidPhone,
+    required this.protectPhonePrefix,
+    required this.movePhoneCursorAfterPrefix,
+  });
+
+  final LanguageProvider langProvider;
+  final String initialName;
+  final String initialEmail;
+  final String initialPhone;
+  final String Function(String value) normalizePhone;
+  final bool Function(String value) isValidPhone;
+  final void Function(TextEditingController controller) protectPhonePrefix;
+  final void Function(TextEditingController controller) movePhoneCursorAfterPrefix;
+
+  @override
+  State<_EditProfileDialog> createState() => _EditProfileDialogState();
+}
+
+class _EditProfileDialogState extends State<_EditProfileDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _phoneController;
+  String? _phoneError;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName);
+    _emailController = TextEditingController(text: widget.initialEmail);
+    _phoneController = TextEditingController(text: widget.initialPhone);
+    _phoneController.addListener(_protectPhonePrefix);
+  }
+
+  @override
+  void dispose() {
+    _phoneController.removeListener(_protectPhonePrefix);
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  void _protectPhonePrefix() {
+    widget.protectPhonePrefix(_phoneController);
+  }
+
+  void _save() {
+    final phoneNumber = widget.normalizePhone(_phoneController.text);
+    if (!widget.isValidPhone(phoneNumber)) {
+      setState(() {
+        _phoneError = widget.langProvider.tr('Enter exactly 10 digits after +92');
+      });
+      return;
+    }
+
+    Navigator.pop(context, {
+      'name': _nameController.text.trim(),
+      'email': _emailController.text.trim(),
+      'phoneNumber': phoneNumber,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final langProvider = widget.langProvider;
+
+    return AlertDialog(
+      title: Text(langProvider.tr('Edit Profile')),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: InputDecoration(
+                labelText: langProvider.tr('Name'),
+                hintText: langProvider.tr('Enter your username'),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s]')),
+              ],
+              decoration: InputDecoration(
+                labelText: langProvider.tr('Phone Number'),
+                hintText: '+92 300-1234567',
+                helperText: _phoneError == null
+                    ? langProvider.tr('Only edit digits after +92')
+                    : null,
+                errorText: _phoneError,
+              ),
+              onTap: () => widget.movePhoneCursorAfterPrefix(_phoneController),
+              onChanged: (_) {
+                if (_phoneError != null) {
+                  setState(() => _phoneError = null);
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: langProvider.tr('Email'),
+                hintText: langProvider.tr('Enter your email'),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(langProvider.tr('Cancel')),
+        ),
+        ElevatedButton(
+          onPressed: _save,
+          child: Text(langProvider.tr('Save')),
+        ),
+      ],
+    );
+  }
+}
