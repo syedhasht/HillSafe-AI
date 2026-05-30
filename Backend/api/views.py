@@ -394,6 +394,12 @@ class CreateAlertView(APIView):
     def post(self, request):
         from accounts.models import DeviceToken
 
+        if getattr(request.user, 'role', '').upper() != 'AUTHORITY':
+            return Response(
+                {'error': 'Only authority accounts can create alerts.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         region_id = request.data.get('region_id')
         send_to_all = request.data.get('send_to_all', False)
         if isinstance(send_to_all, str):
@@ -437,6 +443,8 @@ class CreateAlertView(APIView):
             is_active=True,
         )
 
+        fallback_to_all_devices = False
+
         # Estimate targeted devices count synchronously first (extremely fast database lookup)
         try:
             if send_to_all:
@@ -457,7 +465,11 @@ class CreateAlertView(APIView):
                     )
                     if distance <= self.alert_radius_km:
                         nearby_tokens_count += 1
-                targeted_count = nearby_tokens_count
+                if nearby_tokens_count > 0:
+                    targeted_count = nearby_tokens_count
+                else:
+                    fallback_to_all_devices = True
+                    targeted_count = DeviceToken.objects.count()
         except Exception:
             targeted_count = 0
 
@@ -499,7 +511,7 @@ class CreateAlertView(APIView):
                         )
                         if distance <= self.alert_radius_km:
                             nearby_tokens.append(device.token)
-                    tokens = nearby_tokens
+                    tokens = nearby_tokens or list(DeviceToken.objects.values_list('token', flat=True))
 
                 if tokens:
                     label = {
@@ -559,6 +571,7 @@ class CreateAlertView(APIView):
             'alert_radius_km': self.alert_radius_km,
             'targeted_devices': targeted_count,
             'notifications_sent': targeted_count,
+            'fallback_to_all_devices': fallback_to_all_devices,
             'message': 'Alert created and broadcast successfully.',
         }, status=status.HTTP_201_CREATED)
 

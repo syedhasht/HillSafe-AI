@@ -473,7 +473,7 @@ class ApiService {
       final response = await _client.get(
         Uri.parse('$baseUrl/safety-status/'),
         headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -545,7 +545,7 @@ class ApiService {
       final response = await _client.get(
         Uri.parse('$baseUrl/alerts/'),
         headers: headers,
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -753,7 +753,7 @@ class ApiService {
           'Content-Type': 'application/json',
           'Authorization': 'Token $token',
         },
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -1360,11 +1360,19 @@ class ApiService {
     bool sendToAll = false,
   }) async {
     final token = await getToken();
+    final role = (await getRole())?.toUpperCase();
+    if (token == null || token.isEmpty) {
+      throw Exception('Authority session expired. Please log in again.');
+    }
+    if (role != null && role != 'AUTHORITY') {
+      throw Exception('Only authority accounts can broadcast alerts.');
+    }
+
     final response = await _client.post(
       Uri.parse('$baseUrl/alerts/create/'),
       headers: {
         'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Token $token',
+        'Authorization': 'Token $token',
       },
       body: jsonEncode({
         if (regionId != null) 'region_id': regionId,
@@ -1379,7 +1387,12 @@ class ApiService {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
 
-    final body = jsonDecode(response.body);
-    throw Exception(body['error'] ?? 'Failed to create alert (${response.statusCode})');
+    String errorMessage = 'Failed to create alert (${response.statusCode})';
+    try {
+      final body = jsonDecode(response.body);
+      errorMessage =
+          body['error']?.toString() ?? body['detail']?.toString() ?? errorMessage;
+    } catch (_) {}
+    throw Exception(errorMessage);
   }
 }

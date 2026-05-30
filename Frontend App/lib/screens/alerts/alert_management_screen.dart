@@ -100,8 +100,11 @@ class _AlertManagementScreenState extends State<AlertManagementScreen> {
       setState(() => _submitting = false);
 
       final sent = result['notifications_sent'] ?? 0;
+      final fallback = result['fallback_to_all_devices'] == true;
       _showSnack(
-        '✓ Alert broadcast to $sent device${sent == 1 ? '' : 's'}.',
+        sent == 0
+            ? 'Alert saved, but no registered devices were available for push notification.'
+            : 'Alert broadcast to $sent device${sent == 1 ? '' : 's'}${fallback ? ' using all registered devices' : ''}.',
         isError: false,
       );
       _messageController.clear();

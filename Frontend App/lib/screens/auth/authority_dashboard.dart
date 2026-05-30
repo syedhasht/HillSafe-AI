@@ -289,6 +289,60 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
         _apiService.fetchSOSRequests(),
       ]),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _surface(),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _border()),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _sectionLabel('SITUATION OVERVIEW'),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Icon(LucideIcons.wifiOff, color: _kRed, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Connection Timeout / Error',
+                            style: _popStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _textPri()),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'The live Render server might still be booting up from sleep mode.',
+                            style: _popStyle(fontSize: 11, color: _textSec()),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() {});
+                  },
+                  icon: const Icon(LucideIcons.refreshCw, size: 14),
+                  label: Text('Retry Connection', style: _popStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kTeal,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         final safetyData = (snapshot.data?[0] as Map<String, dynamic>?) ?? {};
         final regions    = (snapshot.data?[1] as List<dynamic>?) ?? [];
         final alerts     = (snapshot.data?[2] as List<dynamic>?) ?? [];
@@ -306,7 +360,24 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionLabel('SITUATION OVERVIEW'),
+            Row(
+              children: [
+                Expanded(child: _sectionLabel('SITUATION OVERVIEW')),
+                if (loading) ...[
+                  const SizedBox(width: 8),
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: _kTeal),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Waking server...',
+                    style: _popStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _kTeal),
+                  ),
+                ],
+              ],
+            ),
             const SizedBox(height: 12),
             // Row 1 — equal height via IntrinsicHeight
             IntrinsicHeight(
@@ -376,6 +447,26 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
     return FutureBuilder<Map<String, dynamic>>(
       future: _apiService.fetchSafetyStatus(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _DarkCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _sectionLabel('RECENT SAFETY CHECK-INS'),
+                const SizedBox(height: 14),
+                Row(children: [
+                  const Icon(LucideIcons.alertCircle, color: _kRed, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Failed to connect to safety status database.',
+                      style: TextStyle(fontSize: 13, color: _kRed)),
+                  ),
+                ]),
+              ],
+            ),
+          );
+        }
+
         final checkins = (snapshot.data?['recent_checkins'] as List<dynamic>? ?? [])
             .cast<Map<String, dynamic>>();
         final loading = snapshot.connectionState == ConnectionState.waiting;
@@ -480,6 +571,27 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _apiService.fetchSOSRequests(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _DarkCard(
+            borderColor: _kRed.withOpacity(0.35),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _sectionLabel('SOS REQUESTS'),
+                const SizedBox(height: 14),
+                Row(children: [
+                  const Icon(LucideIcons.alertCircle, color: _kRed, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Failed to connect to SOS database.',
+                      style: TextStyle(fontSize: 13, color: _kRed)),
+                  ),
+                ]),
+              ],
+            ),
+          );
+        }
+
         final requests = snapshot.data ?? [];
         final loading  = snapshot.connectionState == ConnectionState.waiting;
 
