@@ -357,6 +357,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.surface,
         foregroundColor: AppTheme.textPrimary,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: AppTheme.surface,
+          statusBarIconBrightness:
+              themeProvider.isDarkMode ? Brightness.light : Brightness.dark,
+          statusBarBrightness:
+              themeProvider.isDarkMode ? Brightness.dark : Brightness.light,
+          systemNavigationBarColor: AppTheme.background,
+          systemNavigationBarIconBrightness:
+              themeProvider.isDarkMode ? Brightness.light : Brightness.dark,
+        ),
         title: Text(langProvider.settings),
         elevation: 0,
       ),

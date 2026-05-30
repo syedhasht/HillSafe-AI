@@ -109,7 +109,7 @@ class HillSafeApp extends StatelessWidget {
             // Dynamically set system status bar and navigation bar styles reactively
             SystemChrome.setSystemUIOverlayStyle(
               SystemUiOverlayStyle(
-                statusBarColor: Colors.transparent,
+                statusBarColor: themeProvider.isDarkMode ? const Color(0xFF0F172A) : Colors.white,
                 statusBarIconBrightness: themeProvider.isDarkMode ? Brightness.light : Brightness.dark,
                 statusBarBrightness: themeProvider.isDarkMode ? Brightness.dark : Brightness.light,
                 systemNavigationBarColor: themeProvider.isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF5F4F0),
