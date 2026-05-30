@@ -968,10 +968,9 @@ class _CommunityDashboardState extends State<CommunityDashboard>
               // App header row — white surface with dark text
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.all(
-                    MediaQuery.sizeOf(context).width < 360
-                        ? AppTheme.spacingMedium
-                        : AppTheme.spacingLarge,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spacingMedium,
+                    vertical: 12.0,
                   ),
                   child: Row(
                     children: [
@@ -980,8 +979,8 @@ class _CommunityDashboardState extends State<CommunityDashboard>
                         child: Row(
                           children: [
                             Container(
-                              width: 40,
-                              height: 40,
+                              width: 36,
+                              height: 36,
                               decoration: BoxDecoration(
                                 color: AppTheme.surface,
                                 shape: BoxShape.circle,
@@ -995,14 +994,20 @@ class _CommunityDashboardState extends State<CommunityDashboard>
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 8),
                             Flexible(
                               child: Text(
                                 langProvider.appName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style:
-                                    Theme.of(context).textTheme.headlineMedium,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 19,
+                                      letterSpacing: -0.5,
+                                    ),
                               ),
                             ),
                           ],
@@ -1014,13 +1019,16 @@ class _CommunityDashboardState extends State<CommunityDashboard>
                         children: [
                           // Language Toggle
                           Container(
+                            width: 38,
+                            height: 38,
                             decoration: BoxDecoration(
                               color: AppTheme.surface,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                               boxShadow: AppTheme.cardShadow,
                             ),
                             child: IconButton(
-                              icon: const Icon(LucideIcons.globe),
+                              padding: EdgeInsets.zero,
+                              icon: const Icon(LucideIcons.globe, size: 18),
                               color: AppTheme.accentTeal,
                               onPressed: () {
                                 context
@@ -1030,30 +1038,36 @@ class _CommunityDashboardState extends State<CommunityDashboard>
                               tooltip: langProvider.tr('Toggle Language'),
                             ),
                           ),
-                          const SizedBox(width: AppTheme.spacingSmall),
+                          const SizedBox(width: 6),
                           Container(
+                            width: 38,
+                            height: 38,
                             decoration: BoxDecoration(
                               color: AppTheme.surface,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                               boxShadow: AppTheme.cardShadow,
                             ),
                             child: IconButton(
-                              icon: const Icon(LucideIcons.settings),
+                              padding: EdgeInsets.zero,
+                              icon: const Icon(LucideIcons.settings, size: 18),
                               color: AppTheme.accentTeal,
                               onPressed: () {
                                 Navigator.of(context).pushNamed('/settings');
                               },
                             ),
                           ),
-                          const SizedBox(width: AppTheme.spacingSmall),
+                          const SizedBox(width: 6),
                           Container(
+                            width: 38,
+                            height: 38,
                             decoration: BoxDecoration(
                               color: AppTheme.surface,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                               boxShadow: AppTheme.cardShadow,
                             ),
                             child: IconButton(
-                              icon: const Icon(LucideIcons.bell),
+                              padding: EdgeInsets.zero,
+                              icon: const Icon(LucideIcons.bell, size: 18),
                               color: AppTheme.accentTeal,
                               onPressed: () {
                                 Navigator.of(context).pushNamed('/alert_feed');

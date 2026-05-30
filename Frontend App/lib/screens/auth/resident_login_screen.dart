@@ -82,7 +82,7 @@ class _ResidentLoginScreenState extends State<ResidentLoginScreen> {
         }
         await context.read<LanguageProvider>().loadLanguage();
 
-        Navigator.of(context).pushReplacementNamed('/community_dashboard');
+        Navigator.of(context).pushNamedAndRemoveUntil('/community_dashboard', (route) => false);
       } catch (e) {
         if (mounted) setState(() => _isLoading = false);
         if (!mounted) return;

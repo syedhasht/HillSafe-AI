@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -96,6 +97,17 @@ class HillSafeApp extends StatelessWidget {
             final clampedScaler = mediaQuery.textScaler.clamp(
               minScaleFactor: 0.9,
               maxScaleFactor: 1.15,
+            );
+
+            // Dynamically set system status bar and navigation bar styles reactively
+            SystemChrome.setSystemUIOverlayStyle(
+              SystemUiOverlayStyle(
+                statusBarColor: Colors.transparent,
+                statusBarIconBrightness: themeProvider.isDarkMode ? Brightness.light : Brightness.dark,
+                statusBarBrightness: themeProvider.isDarkMode ? Brightness.dark : Brightness.light,
+                systemNavigationBarColor: themeProvider.isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF5F4F0),
+                systemNavigationBarIconBrightness: themeProvider.isDarkMode ? Brightness.light : Brightness.dark,
+              ),
             );
 
             return Directionality(

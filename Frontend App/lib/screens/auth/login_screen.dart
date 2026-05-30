@@ -83,7 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
-      Navigator.of(context).pushReplacementNamed('/authority_dashboard');
+      Navigator.of(context).pushNamedAndRemoveUntil('/authority_dashboard', (route) => false);
     } catch (e) {
       if (!mounted) return;
       setState(() {
