@@ -73,7 +73,7 @@ User question:
         )
         payload = {
             'contents': [{'parts': [{'text': prompt}]}],
-            'generationConfig': {'temperature': 0.15, 'maxOutputTokens': 450},
+            'generationConfig': {'temperature': 0.15, 'maxOutputTokens': 2048},
         }
 
         try:
