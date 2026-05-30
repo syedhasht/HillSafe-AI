@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:frontend_app/providers/language_provider.dart';
@@ -16,19 +18,31 @@ class ReportIncidentScreen extends StatefulWidget {
 }
 
 class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
+  static const int _yourLocationRegionValue = -1;
+  static const double _yourLocationReportRadiusKm = 50.0;
+
   final _formKey = GlobalKey<FormState>();
   final _locationController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _apiService = ApiService();
+  final _reportMapController = MapController();
   
   String _incidentType = 'Landslide Risk';
-  int? _selectedRegionId;
+  int? _selectedRegionId = _yourLocationRegionValue;
   double? _latitude;
   double? _longitude;
   List<Map<String, dynamic>> _regions = [];
   bool _isSubmitting = false;
   bool _isLoadingRegions = true;
   bool _isLoadingLocation = false;
+
+  bool get _isYourLocationSelected =>
+      _selectedRegionId == _yourLocationRegionValue;
+
+  LatLng get _reportTarget => LatLng(
+        _latitude ?? 30.3753,
+        _longitude ?? 69.3451,
+      );
 
   @override
   void initState() {
@@ -84,11 +98,30 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
           _locationController.text = locationName;
         }
       });
+      _moveReportMap(position.latitude, position.longitude, 11);
     } catch (e) {
       debugPrint('Report location load error: $e');
     } finally {
       if (mounted) setState(() => _isLoadingLocation = false);
     }
+  }
+
+  void _moveReportMap(double latitude, double longitude, double zoom) {
+    try {
+      _reportMapController.move(LatLng(latitude, longitude), zoom);
+    } catch (_) {
+      // The map may not be mounted yet during the first GPS lookup.
+    }
+  }
+
+  void _setReportTarget(LatLng point) {
+    setState(() {
+      _latitude = point.latitude;
+      _longitude = point.longitude;
+      _locationController.text =
+          'Selected coordinates: ${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
+    });
+    _moveReportMap(point.latitude, point.longitude, 10);
   }
 
   Future<void> _loadRegions() async {
@@ -97,7 +130,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       if (mounted) {
         setState(() {
           _regions = regions;
-          if (_regions.isNotEmpty) {
+          if (_selectedRegionId == null && _regions.isNotEmpty) {
             _selectedRegionId = (_regions.first['id'] as num?)?.toInt();
           }
           _isLoadingRegions = false;
@@ -123,6 +156,8 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
 
       // Construct full description with incident type and location
       final fullDescription = '$_incidentType at ${_locationController.text}: ${_descriptionController.text}';
+      final isYourLocationReport = _selectedRegionId == _yourLocationRegionValue;
+      final submitRegionId = isYourLocationReport ? null : _selectedRegionId;
 
       debugPrint('=== SUBMITTING INCIDENT REPORT ===');
       debugPrint('Region ID: $_selectedRegionId');
@@ -131,10 +166,11 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       try {
         final success = await _apiService.submitIncident(
           fullDescription,
-          _selectedRegionId!,
+          submitRegionId,
           latitude: _latitude,
           longitude: _longitude,
           areaName: _locationController.text.trim(),
+          reportRadiusKm: isYourLocationReport ? _yourLocationReportRadiusKm : 50.0,
         );
 
         debugPrint('Submit result: $success');
@@ -298,6 +334,13 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
 
               const SizedBox(height: AppTheme.spacingMedium),
 
+              if (_isYourLocationSelected) ...[
+                _buildCoordinatePicker()
+                    .animate()
+                    .fadeIn(duration: 600.ms, delay: 250.ms),
+                const SizedBox(height: AppTheme.spacingMedium),
+              ],
+
               // Description Field
               _buildDescriptionField()
                   .animate()
@@ -394,13 +437,13 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     }
 
     if (_regions.isEmpty) {
-      return _buildFieldWrapper(
-        label: 'Region',
-        icon: LucideIcons.map,
-        child: Text(context.read<LanguageProvider>().tr('No regions available')),
-      );
+      return _buildRegionDropdown(includeOnlyYourLocation: true);
     }
 
+    return _buildRegionDropdown();
+  }
+
+  Widget _buildRegionDropdown({bool includeOnlyYourLocation = false}) {
     return _buildFieldWrapper(
       label: 'Region',
       icon: LucideIcons.map,
@@ -408,14 +451,142 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         value: _selectedRegionId,
         decoration: AppTheme.inputDecoration(context),
         dropdownColor: AppTheme.surface,
-        items: _regions.map((region) {
-          return DropdownMenuItem(
-            value: (region['id'] as num).toInt(),
-            child: Text(region['name'] as String),
-          );
-        }).toList(),
-        onChanged: (value) => setState(() => _selectedRegionId = value!),
-        validator: (value) => value == null ? context.read<LanguageProvider>().tr('Please select a region') : null,
+        items: [
+          const DropdownMenuItem<int>(
+            value: _yourLocationRegionValue,
+            child: Text('Your Location (50 km radius)'),
+          ),
+          if (!includeOnlyYourLocation)
+            ..._regions.map((region) {
+              return DropdownMenuItem<int>(
+                value: (region['id'] as num).toInt(),
+                child: Text(region['name'] as String),
+              );
+            }),
+        ],
+        onChanged: (value) {
+          if (value == null) return;
+          setState(() => _selectedRegionId = value);
+          if (value == _yourLocationRegionValue && (_latitude == null || _longitude == null)) {
+            _loadCurrentLocation();
+          } else if (value == _yourLocationRegionValue) {
+            _moveReportMap(_latitude!, _longitude!, 11);
+          }
+        },
+        validator: (value) {
+          if (value == null) {
+            return context.read<LanguageProvider>().tr('Please select a region');
+          }
+          if (value == _yourLocationRegionValue && (_latitude == null || _longitude == null)) {
+            return context.read<LanguageProvider>().tr('Please allow location access to submit your location report');
+          }
+          return null;
+        },
+      ),
+    );
+  }
+
+  Widget _buildCoordinatePicker() {
+    final target = _reportTarget;
+
+    return _buildFieldWrapper(
+      label: 'Target Coordinates',
+      icon: LucideIcons.crosshair,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            height: 260,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+              border: Border.all(color: AppTheme.borderColor),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: FlutterMap(
+              mapController: _reportMapController,
+              options: MapOptions(
+                initialCenter: target,
+                initialZoom: _latitude == null || _longitude == null ? 5.5 : 10,
+                minZoom: 4,
+                maxZoom: 16,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                ),
+                onTap: (tapPosition, point) => _setReportTarget(point),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.hillsafe.app',
+                  maxNativeZoom: 19,
+                ),
+                TileLayer(
+                  urlTemplate:
+                      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.png',
+                  userAgentPackageName: 'com.hillsafe.app',
+                  maxNativeZoom: 18,
+                  tileBuilder: (context, tileWidget, tile) {
+                    return Opacity(opacity: 0.88, child: tileWidget);
+                  },
+                ),
+                if (_latitude != null && _longitude != null)
+                  CircleLayer(
+                    circles: [
+                      CircleMarker(
+                        point: target,
+                        radius: _yourLocationReportRadiusKm * 1000,
+                        useRadiusInMeter: true,
+                        color: AppTheme.accentTeal.withOpacity(0.22),
+                        borderColor: AppTheme.accentTeal,
+                        borderStrokeWidth: 2,
+                      ),
+                    ],
+                  ),
+                if (_latitude != null && _longitude != null)
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: target,
+                        width: 44,
+                        height: 44,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppTheme.accentTeal,
+                            shape: BoxShape.circle,
+                            boxShadow: AppTheme.tealShadow,
+                          ),
+                          child: const Icon(
+                            LucideIcons.mapPin,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingSmall),
+          Row(
+            children: [
+              const Icon(LucideIcons.radar, size: 16, color: AppTheme.accentTeal),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _latitude == null || _longitude == null
+                      ? context.read<LanguageProvider>().tr('Tap the map to select report coordinates')
+                      : '${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)} • 50 km radius',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

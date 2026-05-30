@@ -7,6 +7,7 @@ from rest_framework.authtoken.models import Token
 from django.conf import settings
 from django.utils import timezone
 from accounts.models import User
+from accounts.views import sync_role_profile
 from regions.models import Region
 from alerts.models import Alert
 from ml_engine.risk_pipeline import predict_region_risk
@@ -40,20 +41,22 @@ class HillSafeChatbotView(APIView):
             }, status=status.HTTP_200_OK)
 
         prompt = f"""
-You are HillSafe AI Assistant for a landslide early-warning mobile app in Pakistan.
+You are HillSafe AI Assistant, a resident safety helper for landslide-prone mountain areas of Pakistan.
 
-Answer in {language}. Give a complete answer, but keep it practical and easy for residents.
-Use short paragraphs or bullets when useful.
+Answer the user's actual question in {language}. Your job is to resolve practical safety queries, not to predict or announce the user's current landslide risk.
+Give clear precautionary measures, next steps, and what to avoid. Prefer simple bullets for action steps.
+Do not say "your location is high risk" or estimate live risk unless the user explicitly asks about a risk level already shown in the app.
+Do not invent live weather, disaster events, official warnings, rescue status, or exact local conditions.
+If the user asks about rain, cracks, road damage, rockfall, evacuation, reporting, SOS, emergency kits, alerts, or safety status, explain what they should do safely and when to contact authorities.
+If the situation sounds urgent, tell the user to move away from slopes/riverbanks/unstable roads, avoid travel, alert nearby people, and contact local authorities or emergency services.
+Keep the answer concise, calm, and easy for residents.
 Do not use Markdown symbols like **, *, #, or backticks.
-Do not invent live weather or disaster data. Use only the provided context.
-If the user asks why risk is high, explain with rainfall, slope, soil, terrain, and incident-history style factors.
-If risk is high or critical, advise immediate caution and avoiding steep slopes/unstable roads.
 
-Context:
+Optional app context only if directly relevant:
 Region: {region}
-Risk Level: {risk_level}
-Rainfall: {rainfall}
-Temperature: {temperature}
+Risk Level shown in app: {risk_level}
+Rainfall shown in app: {rainfall}
+Temperature shown in app: {temperature}
 
 User question:
 {message}
@@ -162,6 +165,7 @@ class CustomLoginView(APIView):
             user.is_logged_in = True
             user.last_login = timezone.now()
             user.save(update_fields=['is_logged_in', 'last_login'])
+            sync_role_profile(user)
             token, _ = Token.objects.get_or_create(user=user)
 
             return Response({
@@ -211,6 +215,7 @@ class CustomLoginView(APIView):
         user.is_logged_in = True
         user.last_login = timezone.now()
         user.save()
+        sync_role_profile(user)
 
         token, _ = Token.objects.get_or_create(user=user)
 
@@ -231,32 +236,19 @@ class CustomLoginView(APIView):
 class AuthoritySignupView(APIView):
     """
     POST /api/signup/authority/
-    Registers a new AUTHORITY account with username, phone number, and password.
-    Returns 409 if username or phone number already exists.
+    Registers a new AUTHORITY account with username and password.
+    Returns 409 if username already exists.
     """
     permission_classes = [permissions.AllowAny]
 
-    def _normalize_phone_number(self, value):
-        digits = ''.join(ch for ch in value if ch.isdigit())
-        if digits.startswith('92'):
-            digits = digits[2:]
-        if digits.startswith('0'):
-            digits = digits[1:]
-        if len(digits) != 10:
-            return value.strip()
-        return f'+92 {digits[:3]}-{digits[3:]}'
-
     def post(self, request):
         username = (request.data.get('username') or '').strip()
-        phone_number = self._normalize_phone_number(
-            (request.data.get('phone_number') or '').strip()
-        )
         password = (request.data.get('password') or '').strip()
         email = (request.data.get('email') or '').strip()
 
-        if not username or not phone_number or not password:
+        if not username or not password:
             return Response(
-                {'error': 'Username, phone number, and password are all required.'},
+                {'error': 'Username and password are required.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -272,11 +264,11 @@ class AuthoritySignupView(APIView):
                 status=status.HTTP_409_CONFLICT
             )
 
-        if User.objects.filter(phone_number=phone_number).exists():
-            return Response(
-                {'error': 'An account with this phone number already exists.'},
-                status=status.HTTP_409_CONFLICT
-            )
+        phone_number = f'AUTH-{username}'
+        counter = 2
+        while User.objects.filter(phone_number=phone_number).exists():
+            phone_number = f'AUTH-{username}-{counter}'
+            counter += 1
 
         user = User(
             username=username,
@@ -288,6 +280,7 @@ class AuthoritySignupView(APIView):
         user.set_password(password)
         user.last_login = timezone.now()
         user.save()
+        sync_role_profile(user)
 
         token, _ = Token.objects.get_or_create(user=user)
 

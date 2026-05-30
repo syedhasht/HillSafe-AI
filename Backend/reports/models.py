@@ -18,8 +18,10 @@ class IncidentReport(models.Model):
     
     region = models.ForeignKey(
         Region,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name='incident_reports',
+        null=True,
+        blank=True,
         help_text="Region where incident occurred"
     )
     
@@ -44,6 +46,11 @@ class IncidentReport(models.Model):
         blank=True,
         help_text="Human-readable incident location"
     )
+
+    report_radius_km = models.FloatField(
+        default=50.0,
+        help_text="Approximate radius covered by this report"
+    )
     
     image = models.ImageField(
         upload_to='incident_images/',
@@ -63,7 +70,8 @@ class IncidentReport(models.Model):
     )
     
     def __str__(self):
-        return f"{self.user.username} - {self.region.name} ({self.timestamp.strftime('%Y-%m-%d %H:%M')})"
+        place = self.region.name if self.region else self.area_name or 'Your location'
+        return f"{self.user.username} - {place} ({self.timestamp.strftime('%Y-%m-%d %H:%M')})"
     
     class Meta:
         verbose_name = "Incident Report"
@@ -171,6 +179,8 @@ class SOSRequest(models.Model):
         default='NEEDS_HELP',
     )
     timestamp = models.DateTimeField(auto_now_add=True)
+    start_time = models.DateTimeField(null=True, blank=True)
+    end_time = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         region_name = self.region.name if self.region else self.area_name or 'Unknown area'

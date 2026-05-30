@@ -18,6 +18,7 @@ class HillSafeAssistantScreen extends StatefulWidget {
 class _HillSafeAssistantScreenState extends State<HillSafeAssistantScreen> {
   final ApiService _apiService = ApiService();
   final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   final List<_ChatMessage> _messages = [];
   bool _isSending = false;
 
@@ -25,12 +26,12 @@ class _HillSafeAssistantScreenState extends State<HillSafeAssistantScreen> {
     _FaqItem(
       question: 'What is HillSafe AI?',
       answer:
-          'HillSafe AI is a landslide early-warning app. It uses location, weather, terrain, and a machine learning model to estimate risk and guide residents.',
+          'HillSafe AI is a safety app for landslide-prone mountain areas. It helps residents understand warnings, follow precautions, report hazards, and request help during emergencies.',
     ),
     _FaqItem(
       question: 'Why is my area risky?',
       answer:
-          'Risk increases when rainfall is heavy, slopes are steep, soil is weak, elevation changes quickly, or the area has past landslide activity.',
+          'Risk can increase during heavy rain, road cracks, slope movement, weak soil, blocked drains, or falling rocks. Avoid unstable slopes and report visible danger signs.',
     ),
     _FaqItem(
       question: 'What should I do during high risk?',
@@ -45,7 +46,7 @@ class _HillSafeAssistantScreenState extends State<HillSafeAssistantScreen> {
     _FaqItem(
       question: 'How do I report an incident?',
       answer:
-          'Open Report, describe the incident, allow location access, and submit. The report is sent to the backend for authority review.',
+          'Open Report, select the area or target coordinates on the map, describe what you saw, allow location access if needed, and submit it for authority review.',
     ),
     _FaqItem(
       question: 'What should be in an emergency kit?',
@@ -57,7 +58,19 @@ class _HillSafeAssistantScreenState extends State<HillSafeAssistantScreen> {
   @override
   void dispose() {
     _messageController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToLatestMessage() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   void _answerFaq(_FaqItem faq) {
@@ -72,6 +85,7 @@ class _HillSafeAssistantScreenState extends State<HillSafeAssistantScreen> {
         isUser: false,
       ));
     });
+    _scrollToLatestMessage();
   }
 
   Future<void> _sendMessage() async {
@@ -83,6 +97,7 @@ class _HillSafeAssistantScreenState extends State<HillSafeAssistantScreen> {
       _messages.add(_ChatMessage(text: text, isUser: true));
       _isSending = true;
     });
+    _scrollToLatestMessage();
 
     final langProvider = context.read<LanguageProvider>();
     final reply = await _apiService.askHillSafeAssistant(
@@ -95,6 +110,7 @@ class _HillSafeAssistantScreenState extends State<HillSafeAssistantScreen> {
       _messages.add(_ChatMessage(text: reply, isUser: false));
       _isSending = false;
     });
+    _scrollToLatestMessage();
   }
 
   @override
@@ -114,6 +130,7 @@ class _HillSafeAssistantScreenState extends State<HillSafeAssistantScreen> {
         children: [
           Expanded(
             child: ListView(
+              controller: _scrollController,
               padding: const EdgeInsets.all(AppTheme.spacingLarge),
               children: [
                 _AssistantHero(langProvider: langProvider)
@@ -330,7 +347,7 @@ class _ProjectExplanationCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  langProvider.tr('Project Explanation'),
+                  langProvider.tr('Project Overview'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -341,22 +358,22 @@ class _ProjectExplanationCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             langProvider.tr(
-              'HillSafe AI predicts landslide risk for mountainous regions of Pakistan. The mobile app sends location data to the Django backend, where weather and terrain signals are processed by the machine learning model.',
+              'HillSafe AI is a safety app for people living in landslide-prone mountain areas of Pakistan. It helps residents understand nearby risk, receive alerts, report incidents, send SOS requests, and let authorities review community updates in one place.',
             ),
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 12),
           _Point(
-            icon: LucideIcons.cloudRain,
-            text: langProvider.tr('Weather shows rainfall and temperature.'),
+            icon: LucideIcons.shieldAlert,
+            text: langProvider.tr('Residents can check risk levels and follow safety guidance before conditions become dangerous.'),
           ),
           _Point(
-            icon: LucideIcons.mountain,
-            text: langProvider.tr('Terrain explains slope, elevation, and soil.'),
+            icon: LucideIcons.fileWarning,
+            text: langProvider.tr('People can report landslides, damaged roads, flooding, or other hazards from their area.'),
           ),
           _Point(
-            icon: LucideIcons.brain,
-            text: langProvider.tr('The model combines these signals into Low, Moderate, or High risk.'),
+            icon: LucideIcons.siren,
+            text: langProvider.tr('In emergencies, SOS and alerts help connect residents with authorities more quickly.'),
           ),
         ],
       ),

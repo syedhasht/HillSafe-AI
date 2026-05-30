@@ -24,6 +24,7 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
   final MapController _mapController = MapController();
 
   bool _showHeatmap = false;
+  bool _showSatellite = false;
   List<Map<String, dynamic>> _regions = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -72,25 +73,45 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
   }
 
   void _fitCamera() {
-    final points = _regions
-        .map(_regionLatLng)
-        .whereType<LatLng>()
-        .toList();
+    try {
+      final points = _regions
+          .map(_regionLatLng)
+          .whereType<LatLng>()
+          .where((p) =>
+              p.latitude.isFinite &&
+              p.longitude.isFinite &&
+              !p.latitude.isNaN &&
+              !p.longitude.isNaN)
+          .toList();
 
-    if (points.isEmpty) return;
+      if (points.isEmpty) return;
 
-    if (points.length == 1) {
-      _mapController.move(points.first, 10.0);
-      return;
+      if (points.length == 1) {
+        _mapController.move(points.first, 10.0);
+        return;
+      }
+
+      final bounds = LatLngBounds.fromPoints(points);
+
+      // Guard against degenerate (zero-size) bounding boxes —
+      // these occur when all points share the same lat or lng,
+      // causing flutter_map's fitCamera to divide-by-zero → NaN.
+      final latSpan = bounds.north - bounds.south;
+      final lngSpan = bounds.east - bounds.west;
+      if (latSpan < 0.001 || lngSpan < 0.001 || !latSpan.isFinite || !lngSpan.isFinite) {
+        _mapController.move(points.first, 7.0);
+        return;
+      }
+
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.fromLTRB(60, 140, 60, 300),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Authority camera fit skipped: $e');
     }
-
-    final bounds = LatLngBounds.fromPoints(points);
-    _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: bounds,
-        padding: const EdgeInsets.fromLTRB(60, 140, 60, 300),
-      ),
-    );
   }
 
   LatLng? _regionLatLng(Map<String, dynamic> region) {
@@ -102,9 +123,14 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
   }
 
   double? _asDouble(dynamic v) {
-    if (v is num) return v.toDouble();
-    if (v is String) return double.tryParse(v.trim());
-    return null;
+    double? val;
+    if (v is num) {
+      val = v.toDouble();
+    } else if (v is String) {
+      val = double.tryParse(v.trim());
+    }
+    if (val != null && (val.isNaN || val.isInfinite)) return null;
+    return val;
   }
 
   double _regionRiskScore(Map<String, dynamic> region) =>
@@ -137,14 +163,24 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
             // ── Top App Bar (white bg, dark text) ─────────────────────────
             _buildTopBar(),
 
-            // ── Heatmap Toggle (top-right) ────────────────────────────────
+            // ── Toggles (top-right) ────────────────────────────────
             Positioned(
               top: 72,
               right: AppTheme.spacingMedium,
-              child: _buildHeatmapButton()
-                  .animate()
-                  .fadeIn(duration: 600.ms, delay: 300.ms)
-                  .slideX(begin: 0.2, end: 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  _buildSatelliteButton()
+                      .animate()
+                      .fadeIn(duration: 600.ms, delay: 300.ms)
+                      .slideX(begin: 0.2, end: 0),
+                  const SizedBox(height: 8),
+                  _buildHeatmapButton()
+                      .animate()
+                      .fadeIn(duration: 600.ms, delay: 400.ms)
+                      .slideX(begin: 0.2, end: 0),
+                ],
+              ),
             ),
 
             // ── Recenter FAB ──────────────────────────────────────────────
@@ -226,11 +262,19 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
         initialZoom: 6.0,
         minZoom: 4.0,
         maxZoom: 16.0,
+        // Disables fling/inertia animation — the root cause of the
+        // LatLng(NaN, NaN) crash on Android. The physics deceleration
+        // divides by a near-zero timestep producing NaN coordinates.
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all & ~InteractiveFlag.flingAnimation,
+        ),
       ),
       children: [
-        // Base OSM tile layer
+        // Base tile layer
         TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          urlTemplate: _showSatellite 
+              ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+              : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.hillsafe.app',
           maxNativeZoom: 19,
         ),
@@ -247,11 +291,11 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
               final radius = RiskConstants.getCircleRadius(riskScore) * 3.5;
               return CircleMarker(
                 point: point,
-                radius: radius,
-                useRadiusInMeter: true,
-                color: color.withOpacity(0.28),
-                borderColor: color.withOpacity(0.55),
-                borderStrokeWidth: 1.5,
+                radius: 40.0,
+                useRadiusInMeter: false,
+                color: color.withOpacity(0.2),
+                borderColor: color.withOpacity(0.75),
+                borderStrokeWidth: 2,
               );
             }).whereType<CircleMarker>().toList(),
           ),
@@ -267,8 +311,8 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
               final radius = RiskConstants.getCircleRadius(riskScore);
               return CircleMarker(
                 point: point,
-                radius: radius,
-                useRadiusInMeter: true,
+                radius: 24.0,
+                useRadiusInMeter: false,
                 color: color.withOpacity(0.18),
                 borderColor: color.withOpacity(0.8),
                 borderStrokeWidth: 2.0,
@@ -411,7 +455,43 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
     );
   }
 
-  // ── Heatmap button ─────────────────────────────────────────────────────────
+  // ── Toggles ─────────────────────────────────────────────────────────
+
+  Widget _buildSatelliteButton() {
+    return GestureDetector(
+      onTap: () => setState(() => _showSatellite = !_showSatellite),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: _showSatellite
+              ? AppTheme.primaryDark
+              : AppTheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: AppTheme.cardShadow,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _showSatellite ? LucideIcons.map : LucideIcons.globe,
+              color: _showSatellite ? Colors.white : AppTheme.textPrimary,
+              size: 18,
+            ),
+            const SizedBox(width: 7),
+            Text(
+              _showSatellite ? 'Map View' : 'Satellite',
+              style: TextStyle(
+                color: _showSatellite ? Colors.white : AppTheme.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildHeatmapButton() {
     const activeColor = Colors.red;

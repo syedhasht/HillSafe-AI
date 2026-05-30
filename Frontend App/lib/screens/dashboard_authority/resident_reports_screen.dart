@@ -179,6 +179,7 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
     final placeName = areaName != null && areaName.isNotEmpty
         ? areaName
         : report['region_name'] ?? 'Unknown';
+    final radiusKm = (report['report_radius_km'] as num?)?.toDouble();
 
     return Card(
       margin: const EdgeInsets.only(bottom: AppTheme.spacingMedium),
@@ -227,7 +228,7 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                       const Icon(LucideIcons.mapPin, size: 12, color: Colors.orange),
                       const SizedBox(width: 4),
                       Text(
-                        report['region_name'] ?? 'Unknown',
+                        report['region_name'] ?? 'Your Location',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.orange,
@@ -259,6 +260,23 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
               ],
             ),
             const SizedBox(height: 8),
+            if (radiusKm != null) ...[
+              Row(
+                children: [
+                  Icon(LucideIcons.radar, size: 14, color: AppTheme.textSecondary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Radius: ${radiusKm.toStringAsFixed(radiusKm.truncateToDouble() == radiusKm ? 0 : 1)} km',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
             Text(
               report['description'] ?? '',
               style: TextStyle(

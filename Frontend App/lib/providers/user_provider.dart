@@ -93,6 +93,7 @@ class UserProvider extends ChangeNotifier {
     required String name,
     required String email,
     String? phoneNumber,
+    bool notify = true,
   }) async {
     final updated = await ApiService().updateProfile(
       username: name,
@@ -111,7 +112,9 @@ class UserProvider extends ChangeNotifier {
     await prefs.setString('phoneNumber', _phoneNumber);
     await prefs.setString('email', _email);
 
-    notifyListeners();
+    if (notify) {
+      notifyListeners();
+    }
     return true;
   }
 

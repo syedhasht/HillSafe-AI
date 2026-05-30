@@ -88,7 +88,7 @@ class AlertDetailScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(AppTheme.spacingMedium),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Container(
             decoration: BoxDecoration(
@@ -98,35 +98,6 @@ class AlertDetailScreen extends StatelessWidget {
             child: IconButton(
               icon: Icon(LucideIcons.x, color: color),
               onPressed: () => Navigator.of(context).pop(),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTheme.spacingSmall,
-              vertical: 6,
-            ),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: color, width: 1.5),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  LucideIcons.siren,
-                  color: color,
-                  size: 16,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'ACTIVE $severity ALERT',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: color,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                ),
-              ],
             ),
           ),
         ],
@@ -207,8 +178,7 @@ class AlertDetailScreen extends StatelessWidget {
   }
 
   Widget _buildAlertInfo(BuildContext context, Map<String, dynamic> alert, Color color) {
-    final population = alert['affected_population'] ?? 0;
-    final timestamp = DateTime.parse(alert['timestamp']);
+    final timestamp = DateTime.parse(alert['timestamp']).toLocal();
     
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLarge),
@@ -234,7 +204,7 @@ class AlertDetailScreen extends StatelessWidget {
             _InfoRow(
               icon: LucideIcons.clock,
               label: 'Issued',
-              value: '${timestamp.day}/${timestamp.month} at ${timestamp.hour}:${timestamp.minute}',
+              value: _formatIssuedTime(timestamp),
             ),
             const Divider(color: Colors.grey, height: 24),
             _InfoRow(
@@ -243,16 +213,18 @@ class AlertDetailScreen extends StatelessWidget {
               value: '${alert['severity']} - Level ${_getSeverityLevel(alert['severity'])}',
               valueColor: color,
             ),
-            const Divider(color: Colors.grey, height: 24),
-            _InfoRow(
-              icon: LucideIcons.users,
-              label: 'Affected Population',
-              value: '~$population residents',
-            ),
           ],
         ),
       ),
     );
+  }
+
+  String _formatIssuedTime(DateTime timestamp) {
+    final hour = timestamp.hour % 12 == 0 ? 12 : timestamp.hour % 12;
+    final minute = timestamp.minute.toString().padLeft(2, '0');
+    final period = timestamp.hour >= 12 ? 'PM' : 'AM';
+
+    return '${timestamp.day}/${timestamp.month} at $hour:$minute $period';
   }
 
   int _getSeverityLevel(String severity) {
@@ -294,9 +266,28 @@ class AlertDetailScreen extends StatelessWidget {
                 interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
               ),
               children: [
-                 TileLayer(
+                TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.hillsafe.app',
+                  maxNativeZoom: 19,
+                  errorTileCallback: (tile, error, stackTrace) {
+                    debugPrint('Base map tile failed: $tile - $error');
+                  },
+                ),
+                TileLayer(
+                  urlTemplate:
+                      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.png',
+                  userAgentPackageName: 'com.hillsafe.app',
+                  maxNativeZoom: 18,
+                  tileBuilder: (context, tileWidget, tile) {
+                    return Opacity(
+                      opacity: 0.88,
+                      child: tileWidget,
+                    );
+                  },
+                  errorTileCallback: (tile, error, stackTrace) {
+                    debugPrint('Satellite map tile failed: $tile - $error');
+                  },
                 ),
                 CircleLayer(
                   circles: [

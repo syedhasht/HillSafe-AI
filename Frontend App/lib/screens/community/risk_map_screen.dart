@@ -116,13 +116,10 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
   }
 
   void _scheduleCameraFit() {
+    // Single deferred call — the double-call was causing mid-gesture NaN crashes.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _fitCameraToBounds();
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (!mounted) return;
-        _fitCameraToBounds();
-      });
     });
   }
 
@@ -155,41 +152,67 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
   }
 
   void _fitCameraToBounds() {
-    if (widget.selectedRegion != null) {
-      final point = _regionPoint(widget.selectedRegion!);
-      if (point == null) return;
+    try {
+      if (widget.selectedRegion != null) {
+        final point = _regionPoint(widget.selectedRegion!);
+        if (point == null) return;
+        _mapController.move(point, 9.8);
+        return;
+      }
 
-      _mapController.move(point, 9.8);
-      return;
+      if (_regions.isEmpty) return;
+
+      final points = _regions
+          .map(_regionPoint)
+          .whereType<LatLng>()
+          // Strictly filter out any point whose lat/lng is not a real finite number.
+          .where((p) =>
+              p.latitude.isFinite &&
+              p.longitude.isFinite &&
+              !p.latitude.isNaN &&
+              !p.longitude.isNaN)
+          .toList();
+
+      if (points.isEmpty) return;
+
+      if (points.length == 1) {
+        _mapController.move(points.first, 13.0);
+        return;
+      }
+
+      final bounds = LatLngBounds.fromPoints(points);
+
+      // Guard against degenerate (zero-size) bounding boxes —
+      // these occur when all points share the same lat or lng,
+      // causing flutter_map's fitCamera to divide-by-zero and produce NaN.
+      final latSpan = bounds.north - bounds.south;
+      final lngSpan = bounds.east - bounds.west;
+      if (latSpan < 0.001 || lngSpan < 0.001 || !latSpan.isFinite || !lngSpan.isFinite) {
+        _mapController.move(points.first, 7.0);
+        return;
+      }
+
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.all(50),
+        ),
+      );
+    } catch (e) {
+      // Silently swallow any residual engine NaN errors during camera fit.
+      debugPrint('Camera fit skipped: $e');
     }
-
-    if (_regions.isEmpty) return;
-
-    final points = _regions
-        .map(_regionPoint)
-        .whereType<LatLng>()
-        .toList();
-
-    if (points.isEmpty) return;
-    
-    if (points.length == 1) {
-       _mapController.move(points.first, 13.0);
-       return;
-    }
-
-    final bounds = LatLngBounds.fromPoints(points);
-    _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: bounds,
-        padding: const EdgeInsets.all(50),
-      ),
-    );
   }
 
   double? _asDouble(dynamic value) {
-    if (value is num) return value.toDouble();
-    if (value is String) return double.tryParse(value.trim());
-    return null;
+    double? val;
+    if (value is num) {
+      val = value.toDouble();
+    } else if (value is String) {
+      val = double.tryParse(value.trim());
+    }
+    if (val != null && (val.isNaN || val.isInfinite)) return null;
+    return val;
   }
 
   LatLng? _regionPoint(Map<String, dynamic> region) {
@@ -521,6 +544,12 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                     minZoom: 4.0,
                     maxZoom: 16.0,
                     onMapReady: _scheduleCameraFit,
+                    // Disables fling/inertia animation — the root cause of the
+                    // LatLng(NaN, NaN) crash on Android. The physics deceleration
+                    // divides by a near-zero timestep producing NaN coordinates.
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.all & ~InteractiveFlag.flingAnimation,
+                    ),
                   ),
                   children: [
                     TileLayer(
@@ -558,8 +587,8 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                         
                         return CircleMarker(
                           point: point,
-                          radius: radius, 
-                          useRadiusInMeter: true,
+                          radius: widget.selectedRegion == null ? 30.0 : 60.0, 
+                          useRadiusInMeter: false,
                           color: color.withOpacity(widget.selectedRegion == null ? 0.2 : 0.14),
                           borderColor: color.withOpacity(0.75),
                           borderStrokeWidth: widget.selectedRegion == null ? 2 : 1.5,

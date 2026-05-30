@@ -14,6 +14,8 @@ from .models import IncidentReport, SafetyStatus, SOSRequest
 from .serializers import IncidentReportSerializer, SafetyStatusSerializer
 from regions.models import Region
 
+SOS_COOLDOWN = timedelta(minutes=5)
+
 
 class SubmitReportView(APIView):
     """
@@ -21,11 +23,12 @@ class SubmitReportView(APIView):
     
     POST /api/reports/submit/
     Body: {
-      'region_id': int,
+      'region_id': int optional when latitude/longitude are provided,
       'description': str,
       'latitude': float optional,
       'longitude': float optional,
       'area_name': str optional,
+      'report_radius_km': float optional, defaults to 50,
       'image': file optional
     }
     """
@@ -39,13 +42,14 @@ class SubmitReportView(APIView):
         latitude = request.data.get('latitude')
         longitude = request.data.get('longitude')
         area_name = request.data.get('area_name') or ''
+        report_radius_km = request.data.get('report_radius_km') or 50
         image = request.FILES.get('image')
         
         # Validation
-        if not region_id or not description:
+        if not description:
             return Response(
                 {
-                    'error': 'region_id and description are required',
+                    'error': 'description is required',
                     'received': {
                         'region_id': region_id,
                         'description': description
@@ -53,21 +57,30 @@ class SubmitReportView(APIView):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        try:
-            region = Region.objects.get(id=region_id)
-        except Region.DoesNotExist:
-            return Response(
-                {'error': 'Region not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+
+        region = None
+        if region_id not in (None, ''):
+            try:
+                region = Region.objects.get(id=region_id)
+            except Region.DoesNotExist:
+                return Response(
+                    {'error': 'Region not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
         try:
             latitude = float(latitude) if latitude not in (None, '') else None
             longitude = float(longitude) if longitude not in (None, '') else None
+            report_radius_km = float(report_radius_km)
         except (ValueError, TypeError):
             return Response(
-                {'error': 'latitude and longitude must be valid numbers when provided'},
+                {'error': 'latitude, longitude, and report_radius_km must be valid numbers when provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if region is None and (latitude is None or longitude is None):
+            return Response(
+                {'error': 'region_id is required unless latitude and longitude are provided'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -79,6 +92,7 @@ class SubmitReportView(APIView):
             latitude=latitude,
             longitude=longitude,
             area_name=str(area_name)[:255],
+            report_radius_km=report_radius_km,
             image=image
         )
         
@@ -183,11 +197,11 @@ class MarkSafeView(APIView):
                 )
 
         try:
-            latitude = float(latitude) if latitude is not None else None
-            longitude = float(longitude) if longitude is not None else None
+            latitude = float(latitude)
+            longitude = float(longitude)
         except (ValueError, TypeError):
             return Response(
-                {'error': 'latitude and longitude must be valid numbers when provided'},
+                {'error': 'latitude and longitude are required and must be valid numbers'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -343,6 +357,29 @@ class SubmitSOSView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
+        active_sos = (
+            SOSRequest.objects
+            .filter(user=request.user, end_time__gt=timezone.now())
+            .order_by('-end_time')
+            .first()
+        )
+        if active_sos:
+            seconds_until_next_sos = max(
+                0,
+                int((active_sos.end_time - timezone.now()).total_seconds()),
+            )
+            return Response(
+                {
+                    'status': 'cooldown',
+                    'message': 'SOS already sent. Please wait before sending again.',
+                    'seconds_until_next_sos': seconds_until_next_sos,
+                    'sos_start_time': active_sos.start_time,
+                    'sos_end_time': active_sos.end_time,
+                    'sos': _serialize_sos(active_sos),
+                },
+                status=status.HTTP_200_OK,
+            )
+
         latitude = request.data.get('latitude')
         longitude = request.data.get('longitude')
         region_id = request.data.get('region_id')
@@ -372,6 +409,9 @@ class SubmitSOSView(APIView):
         except (ValueError, TypeError):
             risk_score = None
 
+        start_time = timezone.now()
+        end_time = start_time + SOS_COOLDOWN
+
         sos = SOSRequest.objects.create(
             user=request.user,
             region=region,
@@ -383,12 +423,17 @@ class SubmitSOSView(APIView):
             risk_level=str(risk_level).upper()[:20],
             risk_score=risk_score,
             message=str(message),
+            start_time=start_time,
+            end_time=end_time,
         )
 
         return Response(
             {
                 'status': 'success',
                 'message': 'SOS request sent successfully',
+                'seconds_until_next_sos': int(SOS_COOLDOWN.total_seconds()),
+                'sos_start_time': sos.start_time,
+                'sos_end_time': sos.end_time,
                 'sos': _serialize_sos(sos),
             },
             status=status.HTTP_201_CREATED,
@@ -407,6 +452,51 @@ class SOSListView(APIView):
     def get(self, request):
         requests = SOSRequest.objects.select_related('user', 'region').order_by('-timestamp')[:25]
         return Response([_serialize_sos(sos) for sos in requests], status=status.HTTP_200_OK)
+
+
+class SOSStatusView(APIView):
+    """
+    GET endpoint for residents to restore SOS cooldown after app relaunch/login.
+
+    GET /api/reports/sos/status/
+    """
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        active_sos = (
+            SOSRequest.objects
+            .filter(user=request.user, end_time__gt=timezone.now())
+            .order_by('-end_time')
+            .first()
+        )
+        if not active_sos:
+            return Response(
+                {
+                    'status': 'available',
+                    'is_on_cooldown': False,
+                    'seconds_until_next_sos': 0,
+                    'sos_start_time': None,
+                    'sos_end_time': None,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        seconds_until_next_sos = max(
+            0,
+            int((active_sos.end_time - timezone.now()).total_seconds()),
+        )
+        return Response(
+            {
+                'status': 'cooldown',
+                'is_on_cooldown': True,
+                'seconds_until_next_sos': seconds_until_next_sos,
+                'sos_start_time': active_sos.start_time,
+                'sos_end_time': active_sos.end_time,
+                'sos': _serialize_sos(active_sos),
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 def _find_nearest_region(latitude, longitude):
@@ -454,4 +544,6 @@ def _serialize_sos(sos):
         'status': sos.status,
         'status_label': sos.get_status_display(),
         'timestamp': sos.timestamp,
+        'start_time': sos.start_time,
+        'end_time': sos.end_time,
     }

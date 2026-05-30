@@ -6,7 +6,6 @@ import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/providers/language_provider.dart';
 import 'package:frontend_app/providers/user_provider.dart';
 import 'package:frontend_app/services/api_service.dart';
-import 'package:frontend_app/utils/pakistan_phone_number_formatter.dart';
 import 'package:frontend_app/theme/theme_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,7 +13,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// Allows a new authority user to register with:
 /// - Username
-/// - Phone number (Pakistan format)
 /// - Password (min 6 chars)
 /// - Optional email
 class AuthoritySignupScreen extends StatefulWidget {
@@ -27,7 +25,6 @@ class AuthoritySignupScreen extends StatefulWidget {
 class _AuthoritySignupScreenState extends State<AuthoritySignupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
-  final _phoneController = TextEditingController(text: '+92 ');
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _emailController = TextEditingController();
@@ -36,14 +33,11 @@ class _AuthoritySignupScreenState extends State<AuthoritySignupScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  bool _hasSubmitted = false;
-  String? _phoneError;
   String? _signupError;
 
   @override
   void dispose() {
     _usernameController.dispose();
-    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _emailController.dispose();
@@ -51,22 +45,23 @@ class _AuthoritySignupScreenState extends State<AuthoritySignupScreen> {
   }
 
   void _handleSignup() async {
-    final phoneError = validatePakistanPhoneNumber(_phoneController.text);
-
     setState(() {
-      _hasSubmitted = true;
-      _phoneError = phoneError;
       _signupError = null;
     });
 
-    if (!_formKey.currentState!.validate() || phoneError != null) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    final userProvider = context.read<UserProvider>();
+    final themeProvider = context.read<ThemeProvider>();
+    final languageProvider = context.read<LanguageProvider>();
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
 
     setState(() => _isLoading = true);
 
     try {
       final error = await _apiService.signupAuthority(
         username: _usernameController.text.trim(),
-        phoneNumber: _phoneController.text.trim(),
         password: _passwordController.text.trim(),
         email: _emailController.text.trim(),
       );
@@ -81,24 +76,23 @@ class _AuthoritySignupScreenState extends State<AuthoritySignupScreen> {
       if (error != null) return;
 
       // Auto-login: credentials are saved by signupAuthority()
-      await context.read<UserProvider>().login(
+      await userProvider.login(
             await _apiService.getUsername() ??
                 _usernameController.text.trim(),
             'authority',
-            phoneNumber:
-                await _apiService.getPhoneNumber() ?? _phoneController.text.trim(),
+            phoneNumber: await _apiService.getPhoneNumber() ?? '',
             email: await _apiService.getEmail() ?? _emailController.text.trim(),
           );
       final prefs = await SharedPreferences.getInstance();
       final isDark = prefs.getBool('isDarkMode') ?? false;
       if (mounted) {
-        await context.read<ThemeProvider>().toggleTheme(isDark);
+        await themeProvider.toggleTheme(isDark);
       }
-      await context.read<LanguageProvider>().loadLanguage();
+      await languageProvider.loadLanguage();
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Account created successfully! Welcome.'),
           backgroundColor: Colors.green,
@@ -106,7 +100,7 @@ class _AuthoritySignupScreenState extends State<AuthoritySignupScreen> {
         ),
       );
 
-      Navigator.of(context).pushReplacementNamed('/authority_dashboard');
+      navigator.pushReplacementNamed('/authority_dashboard');
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -123,7 +117,6 @@ class _AuthoritySignupScreenState extends State<AuthoritySignupScreen> {
     TextInputType keyboardType = TextInputType.text,
     bool obscure = false,
     VoidCallback? onToggleObscure,
-    List<dynamic>? inputFormatters,
     String? Function(String?)? validator,
     void Function(String)? onChanged,
   }) {
@@ -288,80 +281,6 @@ class _AuthoritySignupScreenState extends State<AuthoritySignupScreen> {
                         .animate()
                         .fadeIn(duration: 600.ms, delay: 350.ms)
                         .slideY(begin: 0.2, end: 0),
-
-                    const SizedBox(height: AppTheme.spacingMedium),
-
-                    // Phone Number
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.surface,
-                        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-                        border: Border.all(color: AppTheme.borderColor),
-                        boxShadow: AppTheme.cardShadow,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppTheme.spacingMedium,
-                        vertical: AppTheme.spacingSmall / 2,
-                      ),
-                      child: TextFormField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        inputFormatters: [PakistanPhoneNumberFormatter()],
-                        enableSuggestions: false,
-                        autocorrect: false,
-                        onChanged: (value) {
-                          if (_signupError != null) setState(() => _signupError = null);
-                          if (!_hasSubmitted) return;
-                          setState(() {
-                            _phoneError = validatePakistanPhoneNumber(value);
-                          });
-                        },
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: AppTheme.textPrimary,
-                            ),
-                        decoration: InputDecoration(
-                          labelText: 'Phone Number',
-                          hintText: '+92 300-1234567',
-                          labelStyle: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: AppTheme.textSecondary),
-                          prefixIcon: const Icon(
-                            LucideIcons.phone,
-                            color: AppTheme.accentTeal,
-                          ),
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-                            borderSide: const BorderSide(
-                              color: AppTheme.accentTeal,
-                              width: 1.5,
-                            ),
-                          ),
-                          errorBorder: InputBorder.none,
-                          focusedErrorBorder: InputBorder.none,
-                        ),
-                        validator: (_) => null,
-                      ),
-                    )
-                        .animate()
-                        .fadeIn(duration: 600.ms, delay: 400.ms)
-                        .slideY(begin: 0.2, end: 0),
-
-                    if (_phoneError != null) ...[
-                      const SizedBox(height: AppTheme.spacingSmall),
-                      Padding(
-                        padding: const EdgeInsets.only(
-                            left: AppTheme.spacingMedium),
-                        child: Text(
-                          _phoneError!,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context).colorScheme.error,
-                              ),
-                        ),
-                      ),
-                    ],
 
                     const SizedBox(height: AppTheme.spacingMedium),
 

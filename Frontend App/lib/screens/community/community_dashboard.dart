@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -76,6 +77,7 @@ class _CommunityDashboardState extends State<CommunityDashboard>
           });
         }
         await _initialSafetyCheck();
+        await _initialSOSStatusCheck();
       }
     } catch (e) {
       if (mounted) {
@@ -92,6 +94,16 @@ class _CommunityDashboardState extends State<CommunityDashboard>
       if (rethrowErrors) {
         rethrow;
       }
+    }
+  }
+
+  Future<void> _initialSOSStatusCheck() async {
+    try {
+      final sosStatus = await _apiService.fetchSOSStatus();
+      if (!mounted || sosStatus.isEmpty) return;
+      _applySOSStatus(sosStatus);
+    } catch (e) {
+      print('Initial SOS status check error: $e');
     }
   }
 
@@ -198,6 +210,55 @@ class _CommunityDashboardState extends State<CommunityDashboard>
     });
   }
 
+  DateTime? _parseApiDateTime(dynamic value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString())?.toLocal();
+  }
+
+  void _applySOSStatus(Map<String, dynamic> data) {
+    final status = data['status']?.toString();
+    final rawSeconds = (data['seconds_until_next_sos'] as num?)?.toInt();
+    final seconds = rawSeconds ??
+        (status == 'success' || status == 'cooldown' ? 300 : 0);
+    final sos = data['sos'] is Map<String, dynamic>
+        ? data['sos'] as Map<String, dynamic>
+        : null;
+    final endTime = _parseApiDateTime(data['sos_end_time']) ??
+        _parseApiDateTime(sos?['end_time']);
+    final isActive = data['is_on_cooldown'] == true ||
+        status == 'success' ||
+        status == 'cooldown' ||
+        seconds > 0;
+
+    setState(() {
+      _nextSOSAllowedAt = isActive ? DateTime.now().add(Duration(seconds: seconds)) : null;
+      if (isActive && rawSeconds == null && endTime != null && endTime.isAfter(DateTime.now())) {
+        _nextSOSAllowedAt = endTime;
+      }
+    });
+    _scheduleSOSUnlock();
+  }
+
+  void _scheduleSOSUnlock() {
+    _sosUnlockTimer?.cancel();
+    if (_nextSOSAllowedAt == null) return;
+
+    _sosUnlockTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      if (!_isSOSOnCooldown) {
+        timer.cancel();
+        setState(() => _nextSOSAllowedAt = null);
+        return;
+      }
+
+      setState(() {});
+    });
+  }
+
   String _formatSafeCooldown() {
     if (_nextSafeMarkAt == null) return 'Notify authorities that you are safe';
     final remaining = _nextSafeMarkAt!.difference(DateTime.now());
@@ -261,24 +322,35 @@ class _CommunityDashboardState extends State<CommunityDashboard>
         'DEBUG: Starting _markAsSafe. Current nearestRegionId: $_nearestRegionId');
 
     try {
-      final regionId = _nearestRegionId ??
+      final position = await _apiService.getCurrentPosition();
+      if (position == null) {
+        throw Exception('Location permission is required to mark yourself safe.');
+      }
+
+      final nearest = _findNearestRegion(
+        position.latitude,
+        position.longitude,
+        _regions,
+      );
+      final regionId = (nearest?['id'] as num?)?.toInt() ??
+          _nearestRegionId ??
           (_regions.isNotEmpty ? (_regions.first['id'] as num).toInt() : null);
 
       if (regionId == null) {
         throw Exception('No monitored regions available. Please refresh.');
       }
 
-      final position = await _apiService.getCurrentPosition();
-      final areaName = position == null
-          ? null
-          : await _apiService.fetchLocationName(
-              position.latitude, position.longitude);
+      final areaName = await _apiService.fetchLocationName(
+            position.latitude,
+            position.longitude,
+          ) ??
+          'Current location: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
 
       print('DEBUG: Calling apiService.markAsSafe for region: $regionId');
       final response = await _apiService.markAsSafe(
         regionId,
-        latitude: position?.latitude,
-        longitude: position?.longitude,
+        latitude: position.latitude,
+        longitude: position.longitude,
         areaName: areaName,
       );
       final success = response?['status'] == 'success';
@@ -299,12 +371,10 @@ class _CommunityDashboardState extends State<CommunityDashboard>
         }
 
         if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✓ Marked as safe successfully!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
+          _showSafeConfirmationDialog(
+            latitude: position.latitude,
+            longitude: position.longitude,
+            areaName: areaName,
           );
         } else if (cooldown) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -338,6 +408,166 @@ class _CommunityDashboardState extends State<CommunityDashboard>
     }
   }
 
+  void _showSafeConfirmationDialog({
+    required double latitude,
+    required double longitude,
+    required String areaName,
+  }) {
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'Safety status sent',
+      barrierColor: Colors.black.withOpacity(0.82),
+      transitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        return Material(
+          color: Colors.transparent,
+          child: SafeArea(
+            child: Container(
+              width: double.infinity,
+              height: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Color(0xFF065F46),
+                    Color(0xFF047857),
+                    Color(0xFF064E3B),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      icon: const Icon(
+                        LucideIcons.x,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    width: 112,
+                    height: 112,
+                    margin: const EdgeInsets.only(bottom: 26),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.13),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.22),
+                          blurRadius: 28,
+                          offset: const Offset(0, 14),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      LucideIcons.shieldCheck,
+                      color: Colors.white,
+                      size: 58,
+                    ),
+                  ),
+                  Text(
+                    'YOU ARE MARKED SAFE',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 31,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                      height: 1.08,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Authorities can now see your safe check-in.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(0.28)),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          areaName,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 15,
+                            height: 1.35,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          '${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            color: Colors.white.withOpacity(0.92),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(LucideIcons.checkCircle),
+                    label: const Text('I understand'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF065F46),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      textStyle: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.96, end: 1).animate(animation),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _sendSOS() async {
     if (_isSendingSOS) return;
     if (_isSOSOnCooldown) {
@@ -366,9 +596,10 @@ class _CommunityDashboardState extends State<CommunityDashboard>
       );
       final regionId = (nearest?['id'] as num?)?.toInt();
       final areaName = await _apiService.fetchLocationName(
-        position.latitude,
-        position.longitude,
-      );
+            position.latitude,
+            position.longitude,
+          ) ??
+          'Current location: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
 
       final riskData = await _apiService.predictLocationRisk(
         latitude: position.latitude,
@@ -392,15 +623,19 @@ class _CommunityDashboardState extends State<CommunityDashboard>
       if (!mounted) return;
       setState(() => _isSendingSOS = false);
 
-      if (response?['status'] == 'success') {
-        _startSOSCooldown();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('SOS sent to authorities. Help request received.'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
+      if (response?['status'] == 'success' || response?['status'] == 'cooldown') {
+        _applySOSStatus(response!);
+        if (response['status'] == 'success') {
+          _showSOSConfirmationDialog();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_formatSOSCooldown()),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       } else {
         throw Exception('Unable to send SOS. Please try again.');
       }
@@ -418,32 +653,144 @@ class _CommunityDashboardState extends State<CommunityDashboard>
     }
   }
 
+  void _showSOSConfirmationDialog() {
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'SOS sent',
+      barrierColor: Colors.black.withOpacity(0.92),
+      transitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        return Material(
+          color: Colors.transparent,
+          child: SafeArea(
+            child: Container(
+              width: double.infinity,
+              height: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Color(0xFF7F1D1D),
+                    Color(0xFF991B1B),
+                    Color(0xFF450A0A),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      icon: const Icon(
+                        LucideIcons.x,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    width: 112,
+                    height: 112,
+                    margin: const EdgeInsets.only(bottom: 26),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.25),
+                          blurRadius: 28,
+                          offset: const Offset(0, 14),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      LucideIcons.siren,
+                      color: Colors.white,
+                      size: 58,
+                    ),
+                  ),
+                  Text(
+                    'SOS SENT',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 40,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                      height: 1.05,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Authorities are being alerted.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Your emergency location and risk details have been sent. Keep your phone nearby and move to a safer place if you can.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 16,
+                      height: 1.45,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(LucideIcons.checkCircle),
+                    label: const Text('I understand'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF7F1D1D),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      textStyle: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.96, end: 1).animate(animation),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
   bool get _isSOSOnCooldown {
     final nextAllowed = _nextSOSAllowedAt;
     return nextAllowed != null && DateTime.now().isBefore(nextAllowed);
-  }
-
-  void _startSOSCooldown() {
-    _sosUnlockTimer?.cancel();
-
-    setState(() {
-      _nextSOSAllowedAt = DateTime.now().add(const Duration(minutes: 5));
-    });
-
-    _sosUnlockTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-
-      if (!_isSOSOnCooldown) {
-        timer.cancel();
-        setState(() => _nextSOSAllowedAt = null);
-        return;
-      }
-
-      setState(() {});
-    });
   }
 
   String _formatSOSCooldown() {
@@ -1491,8 +1838,8 @@ class _QuickActionButton extends StatelessWidget {
     final cardColor = isCritical && enabled
         ? const Color(0xFFB91C1C)
         : AppTheme.surface;
-    final labelColor = isCritical && enabled
-        ? Colors.white
+    final labelColor = isCritical
+        ? (enabled ? Colors.white : const Color(0xFFB91C1C))
         : AppTheme.textPrimary;
 
     return GestureDetector(
@@ -1526,7 +1873,7 @@ class _QuickActionButton extends StatelessWidget {
         child: Column(
           children: [
             Opacity(
-              opacity: enabled ? 1 : 0.55,
+              opacity: isCritical ? 1 : (enabled ? 1 : 0.55),
               child: Stack(
                 alignment: Alignment.center,
                 children: [

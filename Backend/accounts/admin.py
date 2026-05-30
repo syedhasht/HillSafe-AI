@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User
+from .models import AuthorityProfile, ResidentProfile, User
 
 
 @admin.register(User)
@@ -25,6 +25,20 @@ class CustomUserAdmin(UserAdmin):
 
 
 from .models import DeviceToken
+
+
+@admin.register(ResidentProfile)
+class ResidentProfileAdmin(admin.ModelAdmin):
+    list_display = ['username', 'phone_number', 'email', 'user', 'updated_at']
+    search_fields = ['username', 'phone_number', 'email', 'user__username']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(AuthorityProfile)
+class AuthorityProfileAdmin(admin.ModelAdmin):
+    list_display = ['username', 'phone_number', 'email', 'user', 'updated_at']
+    search_fields = ['username', 'phone_number', 'email', 'user__username']
+    readonly_fields = ['created_at', 'updated_at']
 
 @admin.register(DeviceToken)
 class DeviceTokenAdmin(admin.ModelAdmin):

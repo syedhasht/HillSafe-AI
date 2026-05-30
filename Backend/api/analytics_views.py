@@ -165,7 +165,7 @@ class AnalyticsDetailView(APIView):
                 'risk_score': round(score * 100, 1),
                 'risk_level': level,
                 'alert_count': alert_count,
-                'last_updated': region.last_updated.isoformat(),
+                'last_updated': timezone.localtime(region.last_updated).isoformat(),
             })
 
         return Response({

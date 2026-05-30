@@ -45,9 +45,9 @@ Render holds all secrets securely inside its dashboard. Do **NOT** commit your `
 * `ALLOWED_HOSTS` — `*` or `hillsafe-ai.onrender.com`
 
 ### Live API Keys:
-* `OPENWEATHER_API_KEY` — `6e30f67a3b6839ae354514f0312ac4bc` (your active OpenWeatherMap API key)
-* `WEATHER_API_KEY` — `6e30f67a3b6839ae354514f0312ac4bc` (identical, kept for fallback compatibility)
-* `GEMINI_API_KEY` — `AQ.Ab8RN6KLLS5pjCV0pgMjc4LPxASA-SGiyJEg4Nam97ndC4WmrA` (your Gemini API key for the AI Chatbot Assistant)
+* `OPENWEATHER_API_KEY` — `<YOUR_OPENWEATHER_API_KEY>` (your active OpenWeatherMap API key)
+* `WEATHER_API_KEY` — `<YOUR_OPENWEATHER_API_KEY>` (identical, kept for fallback compatibility)
+* `GEMINI_API_KEY` — `<YOUR_GEMINI_API_KEY>` (your Gemini API key for the AI Chatbot Assistant)
 
 ---
 

@@ -79,6 +79,58 @@ class User(AbstractUser):
         ordering = ['-date_joined']
 
 
+class ResidentProfile(models.Model):
+    """
+    Resident-specific login/profile record.
+    Kept separate from authority profile data while still linking to auth user.
+    """
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='resident_profile',
+    )
+    username = models.CharField(max_length=150)
+    phone_number = models.CharField(max_length=20, unique=True)
+    email = models.EmailField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Resident: {self.username} ({self.phone_number})"
+
+    class Meta:
+        verbose_name = "Resident Login Profile"
+        verbose_name_plural = "Resident Login Profiles"
+        ordering = ['-updated_at']
+
+
+class AuthorityProfile(models.Model):
+    """
+    Authority-specific login/profile record.
+    Kept separate from resident login/profile data.
+    """
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='authority_profile',
+    )
+    username = models.CharField(max_length=150, unique=True)
+    phone_number = models.CharField(max_length=20, unique=True)
+    email = models.EmailField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Authority: {self.username} ({self.phone_number})"
+
+    class Meta:
+        verbose_name = "Authority Login Profile"
+        verbose_name_plural = "Authority Login Profiles"
+        ordering = ['-updated_at']
+
+
 class DeviceToken(models.Model):
     """
     Model for storing Firebase Cloud Messaging device tokens.

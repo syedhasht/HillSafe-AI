@@ -109,7 +109,6 @@ class ApiService {
   /// Creates a new AUTHORITY account. Returns null on success or an error string.
   Future<String?> signupAuthority({
     required String username,
-    required String phoneNumber,
     required String password,
     String email = '',
   }) async {
@@ -119,7 +118,6 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'username': username,
-          'phone_number': phoneNumber,
           'password': password,
           'email': email,
         }),
@@ -131,7 +129,7 @@ class ApiService {
         await _storage.write(key: _roleKey, value: data['role']);
         await _storage.write(key: _usernameKey, value: data['username']);
         await _storage.write(
-            key: _phoneKey, value: data['phone_number'] ?? phoneNumber);
+            key: _phoneKey, value: data['phone_number'] ?? '');
         await _storage.write(key: _emailKey, value: data['email'] ?? '');
         await _storage.write(key: _languageKey, value: data['language'] ?? 'en');
         await _storage.write(
@@ -675,6 +673,31 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> fetchSOSStatus() async {
+    try {
+      final token = await getToken();
+      if (token == null) return {};
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/reports/sos/status/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Token $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+
+      print('Fetch SOS status error: ${response.statusCode} - ${response.body}');
+      return {};
+    } catch (e) {
+      print('Fetch SOS status exception: $e');
+      return {};
+    }
+  }
+
   Future<List<Map<String, dynamic>>> fetchSOSRequests() async {
     try {
       final token = await getToken();
@@ -884,11 +907,12 @@ class ApiService {
   /// Returns true if successful, false otherwise
   Future<bool> submitIncident(
     String description,
-    int regionId, {
+    int? regionId, {
     String? imagePath,
     double? latitude,
     double? longitude,
     String? areaName,
+    double reportRadiusKm = 50.0,
   }) async {
     try {
       print('=== SUBMIT INCIDENT API CALL ===');
@@ -913,13 +937,16 @@ class ApiService {
 
       request.headers['Authorization'] = 'Token $token';
       request.fields['description'] = description;
-      request.fields['region_id'] = regionId.toString();
+      if (regionId != null) {
+        request.fields['region_id'] = regionId.toString();
+      }
       if (latitude != null) {
         request.fields['latitude'] = latitude.toString();
       }
       if (longitude != null) {
         request.fields['longitude'] = longitude.toString();
       }
+      request.fields['report_radius_km'] = reportRadiusKm.toString();
       if (areaName != null && areaName.trim().isNotEmpty) {
         request.fields['area_name'] = areaName.trim();
       }

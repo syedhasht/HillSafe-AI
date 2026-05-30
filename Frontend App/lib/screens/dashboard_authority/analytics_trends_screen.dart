@@ -5,7 +5,7 @@ import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/services/api_service.dart';
 import 'package:intl/intl.dart';
 
-/// Analytics Trends Screen — Light theme, professional chart displays
+/// Analytics Trends Screen â€” Light theme, professional chart displays
 import 'package:frontend_app/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -14,6 +14,214 @@ class AnalyticsTrendsScreen extends StatefulWidget {
 
   @override
   State<AnalyticsTrendsScreen> createState() => _AnalyticsTrendsScreenState();
+}
+
+// Stat Card
+
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String change;
+  final bool? changePositive;
+  final Color color;
+
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.change,
+    required this.changePositive,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacingMedium),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: AppTheme.cardShadow,
+        border: Border.all(color: AppTheme.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: AppTheme.spacingSmall),
+          Text(
+            label,
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: changePositive == null
+                      ? AppTheme.accentTeal.withOpacity(0.12)
+                      : (changePositive!
+                          ? Colors.green.withOpacity(0.12)
+                          : Colors.red.withOpacity(0.12)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  change,
+                  style: TextStyle(
+                    color: changePositive == null
+                        ? AppTheme.accentTeal
+                        : (changePositive! ? Colors.green : Colors.red),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Bar Chart
+
+class _BarChart extends StatelessWidget {
+  final List<double> data;
+  final List<String> labels;
+  final Color color;
+
+  const _BarChart({
+    required this.data,
+    required this.labels,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.isEmpty) return const SizedBox();
+
+    final maxValue = data.reduce((a, b) => a > b ? a : b);
+    final showValueLabels = data.length <= 7 && maxValue > 0;
+    const double labelReserve = 20.0;
+
+    return Column(
+      children: [
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final availableHeight =
+                  constraints.maxHeight - (showValueLabels ? labelReserve : 0);
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(data.length, (index) {
+                  final value = data[index];
+                  final barHeight = maxValue > 0
+                      ? ((value / maxValue) * availableHeight)
+                          .clamp(0.0, availableHeight)
+                      : 0.0;
+
+                  return Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                          horizontal: data.length > 10 ? 1 : 3),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (showValueLabels) ...[
+                            Text(
+                              value == 0 ? '' : '${value.toInt()}',
+                              style: TextStyle(
+                                color: AppTheme.textPrimary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                          ],
+                          Container(
+                            height: barHeight,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [
+                                  color.withOpacity(0.7),
+                                  color,
+                                ],
+                              ),
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(4),
+                              ),
+                            ),
+                          )
+                              .animate()
+                              .scaleY(
+                                begin: 0,
+                                end: 1,
+                                alignment: Alignment.bottomCenter,
+                                duration: 700.ms,
+                                delay: (index * (data.length > 10 ? 15 : 80))
+                                    .ms,
+                                curve: Curves.easeOutCubic,
+                              ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(labels.length, (i) {
+            bool showLabel = false;
+            if (labels.length <= 7) {
+              showLabel = true;
+            } else if (labels.length == 30) {
+              showLabel = (i == 0 || i == 6 || i == 12 || i == 18 || i == 24 || i == 29);
+            } else {
+              showLabel = (i == 0 || i == labels.length - 1 || (labels.length > 2 ? i == (labels.length ~/ 2) : false));
+            }
+            return Expanded(
+              child: Text(
+                showLabel ? labels[i] : '',
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.visible,
+                softWrap: false,
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 9),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
 }
 
 class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
@@ -214,24 +422,6 @@ class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
                 )
                     .animate()
                     .fadeIn(duration: 600.ms, delay: 400.ms)
-                    .slideY(begin: 0.1, end: 0),
-              ),
-
-            const SliverToBoxAdapter(
-              child: SizedBox(height: AppTheme.spacingLarge),
-            ),
-
-            // Risk Index Chart
-            if (!_isLoading && _analyticsData.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spacingLarge,
-                  ),
-                  child: _buildRiskChart(),
-                )
-                    .animate()
-                    .fadeIn(duration: 600.ms, delay: 600.ms)
                     .slideY(begin: 0.1, end: 0),
               ),
 
@@ -530,400 +720,5 @@ class _AnalyticsTrendsScreenState extends State<AnalyticsTrendsScreen> {
     );
   }
 
-  Widget _buildRiskChart() {
-    final riskData = (_analyticsData['risk_trend'] as List<dynamic>?)
-            ?.map<double>((e) => (e as num).toDouble())
-            .toList() ??
-        [];
-    final backendLabels = _analyticsData['labels'] as List<dynamic>?;
-    final labels = backendLabels?.map((e) => e.toString()).toList() ??
-        _generateLabels(riskData.length);
-
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingLarge),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-        boxShadow: AppTheme.cardShadow,
-        border: Border.all(color: AppTheme.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  LucideIcons.mountain,
-                  color: Color(0xFFF59E0B),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: AppTheme.spacingSmall),
-              Text(
-                'Risk Index ($periodName)',
-                style: TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppTheme.spacingLarge),
-          SizedBox(
-            height: 200,
-            child: riskData.isNotEmpty
-                ? _LineChart(
-                    data: riskData,
-                    labels: labels,
-                    color: const Color(0xFFF59E0B),
-                  )
-                : Center(
-                    child: Text(
-                      'No risk data available',
-                      style: TextStyle(color: AppTheme.textSecondary),
-                    ),
-                  ),
-          ),
-          const SizedBox(height: AppTheme.spacingMedium),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(width: 12, height: 3, color: const Color(0xFFF59E0B)),
-              const SizedBox(width: 6),
-              Text(
-                'Avg Risk Score (0–100)',
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-// ─── Stat Card ───────────────────────────────────────────────────────────────
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final String change;
-  final bool? changePositive;
-  final Color color;
-
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.change,
-    required this.changePositive,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingMedium),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: AppTheme.cardShadow,
-        border: Border.all(color: AppTheme.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: AppTheme.spacingSmall),
-          Text(
-            label,
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    value,
-                    style: TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: changePositive == null
-                      ? AppTheme.accentTeal.withOpacity(0.12)
-                      : (changePositive!
-                          ? Colors.green.withOpacity(0.12)
-                          : Colors.red.withOpacity(0.12)),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  change,
-                  style: TextStyle(
-                    color: changePositive == null
-                        ? AppTheme.accentTeal
-                        : (changePositive! ? Colors.green : Colors.red),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Bar Chart ───────────────────────────────────────────────────────────────
-
-class _BarChart extends StatelessWidget {
-  final List<double> data;
-  final List<String> labels;
-  final Color color;
-
-  const _BarChart({
-    required this.data,
-    required this.labels,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (data.isEmpty) return const SizedBox();
-
-    final maxValue = data.reduce((a, b) => a > b ? a : b);
-    final showValueLabels = data.length <= 7 && maxValue > 0;
-    const double labelReserve = 20.0;
-
-    return Column(
-      children: [
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final availableHeight =
-                  constraints.maxHeight - (showValueLabels ? labelReserve : 0);
-
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(data.length, (index) {
-                  final value = data[index];
-                  final barHeight = maxValue > 0
-                      ? ((value / maxValue) * availableHeight)
-                          .clamp(0.0, availableHeight)
-                      : 0.0;
-
-                  return Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: data.length > 10 ? 1 : 3),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (showValueLabels) ...[
-                            Text(
-                              value == 0 ? '' : '${value.toInt()}',
-                              style: TextStyle(
-                                color: AppTheme.textPrimary,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                          ],
-                          Container(
-                            height: barHeight,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.bottomCenter,
-                                end: Alignment.topCenter,
-                                colors: [
-                                  color.withOpacity(0.7),
-                                  color,
-                                ],
-                              ),
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(4),
-                              ),
-                            ),
-                          )
-                              .animate()
-                              .scaleY(
-                                begin: 0,
-                                end: 1,
-                                alignment: Alignment.bottomCenter,
-                                duration: 700.ms,
-                                delay: (index * (data.length > 10 ? 15 : 80))
-                                    .ms,
-                                curve: Curves.easeOutCubic,
-                              ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(labels.length, (i) {
-            return Flexible(
-              child: Text(
-                labels[i],
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 9),
-              ),
-            );
-          }),
-        ),
-      ],
-    );
-  }
-}
-
-// ─── Line Chart ──────────────────────────────────────────────────────────────
-
-class _LineChart extends StatelessWidget {
-  final List<double> data;
-  final List<String> labels;
-  final Color color;
-
-  const _LineChart({
-    required this.data,
-    required this.labels,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: CustomPaint(
-            painter: _LineChartPainter(data, color),
-            size: const Size(double.infinity, double.infinity),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(labels.length, (i) {
-            return Flexible(
-              child: Text(
-                labels[i],
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 9),
-              ),
-            );
-          }),
-        ),
-      ],
-    );
-  }
-}
-
-class _LineChartPainter extends CustomPainter {
-  final List<double> data;
-  final Color color;
-
-  _LineChartPainter(this.data, this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (data.isEmpty || size.width <= 0 || size.height <= 0) return;
-
-    final maxValue = data.reduce((a, b) => a > b ? a : b);
-    final minValue = data.reduce((a, b) => a < b ? a : b);
-    final range = maxValue - minValue;
-    final showDots = data.length <= 10;
-
-    final linePaint = Paint()
-      ..color = color
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [color.withOpacity(0.25), color.withOpacity(0.0)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..style = PaintingStyle.fill;
-
-    if (data.length == 1) {
-      final y = size.height * 0.5;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
-      if (showDots) {
-        canvas.drawCircle(
-            Offset(size.width / 2, y), 5, Paint()..color = color);
-        canvas.drawCircle(
-            Offset(size.width / 2, y), 3, Paint()..color = AppTheme.surface);
-      }
-      return;
-    }
-
-    final stepX = size.width / (data.length - 1);
-    final points = <Offset>[];
-    for (int i = 0; i < data.length; i++) {
-      final x = i * stepX;
-      final normalizedValue = range > 0 ? (data[i] - minValue) / range : 0.5;
-      final y = (size.height - (normalizedValue * (size.height - 8)) - 4)
-          .clamp(0.0, size.height);
-      points.add(Offset(x, y));
-    }
-
-    final path = Path();
-    path.moveTo(points[0].dx, points[0].dy);
-    for (int i = 1; i < points.length; i++) {
-      path.lineTo(points[i].dx, points[i].dy);
-    }
-
-    final fillPath = Path.from(path);
-    fillPath.lineTo(size.width, size.height);
-    fillPath.lineTo(0, size.height);
-    fillPath.close();
-
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, linePaint);
-
-    if (showDots) {
-      for (final point in points) {
-        canvas.drawCircle(point, 4.5, Paint()..color = color);
-        canvas.drawCircle(point, 2.5, Paint()..color = AppTheme.surface);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_LineChartPainter oldDelegate) =>
-      oldDelegate.data != data || oldDelegate.color != color;
-}
