@@ -437,27 +437,17 @@ class CreateAlertView(APIView):
             is_active=True,
         )
 
-        # Push notifications — best-effort
-        notifications_sent = 0
+        # Estimate targeted devices count synchronously first (extremely fast database lookup)
         try:
-            import firebase_admin
-            from firebase_admin import messaging
-
-            if not firebase_admin._apps:
-                import os
-                cred_path = os.path.join(settings.BASE_DIR, 'serviceAccountKey.json')
-                cred = firebase_admin.credentials.Certificate(cred_path)
-                firebase_admin.initialize_app(cred)
-
             if send_to_all:
-                tokens = list(DeviceToken.objects.values_list('token', flat=True))
+                targeted_count = DeviceToken.objects.count()
             else:
-                nearby_tokens = []
                 located_devices = DeviceToken.objects.exclude(
                     latitude__isnull=True,
                 ).exclude(
                     longitude__isnull=True,
                 )
+                nearby_tokens_count = 0
                 for device in located_devices:
                     distance = self._distance_km(
                         float(device.latitude),
@@ -466,45 +456,100 @@ class CreateAlertView(APIView):
                         float(region.longitude),
                     )
                     if distance <= self.alert_radius_km:
-                        nearby_tokens.append(device.token)
-                tokens = nearby_tokens
+                        nearby_tokens_count += 1
+                targeted_count = nearby_tokens_count
+        except Exception:
+            targeted_count = 0
 
-            if tokens:
-                label = {
-                    'CRITICAL': '\U0001f534 CRITICAL',
-                    'HIGH': '\U0001f7e0 HIGH',
-                    'MEDIUM': '\U0001f7e1 MEDIUM',
-                    'LOW': '\U0001f7e2 LOW',
-                }.get(severity, severity)
-                title = f'{label} Alert \u2014 {region.name}'
+        # Push notifications — best-effort offloaded to background thread to prevent TimeoutExceptions!
+        import threading
 
-                for i in range(0, len(tokens), 500):
-                    chunk = tokens[i:i + 500]
-                    mc = messaging.MulticastMessage(
-                        tokens=chunk,
-                        notification=messaging.Notification(title=title, body=message[:200]),
-                        data={
-                            'alert_id': str(alert.id),
-                            'severity': severity,
-                            'region_id': str(region.id),
-                            'region_name': region.name,
-                        },
-                        android=messaging.AndroidConfig(
-                            priority='high',
-                            notification=messaging.AndroidNotification(
-                                sound='default',
-                                default_sound=True,
-                                notification_priority='PRIORITY_MAX',
-                            ),
-                        ),
-                        apns=messaging.APNSConfig(
-                            payload=messaging.APNSPayload(aps=messaging.Aps(sound='default'))
-                        ),
+        def send_notifications_background(alert_id, region_id, severity, message, send_to_all):
+            try:
+                import firebase_admin
+                from firebase_admin import messaging
+                from alerts.models import Alert
+                from regions.models import Region
+
+                # Re-fetch models in background thread to prevent session thread-safety issues
+                bg_alert = Alert.objects.get(id=alert_id)
+                bg_region = Region.objects.get(id=region_id)
+
+                if not firebase_admin._apps:
+                    import os
+                    cred_path = os.path.join(settings.BASE_DIR, 'serviceAccountKey.json')
+                    cred = firebase_admin.credentials.Certificate(cred_path)
+                    firebase_admin.initialize_app(cred)
+
+                if send_to_all:
+                    tokens = list(DeviceToken.objects.values_list('token', flat=True))
+                else:
+                    nearby_tokens = []
+                    located_devices = DeviceToken.objects.exclude(
+                        latitude__isnull=True,
+                    ).exclude(
+                        longitude__isnull=True,
                     )
-                    resp = messaging.send_each_for_multicast(mc)
-                    notifications_sent += resp.success_count
-        except Exception as exc:
-            print(f'[CreateAlertView] Push notification error: {exc}')
+                    for device in located_devices:
+                        distance = self._distance_km(
+                            float(device.latitude),
+                            float(device.longitude),
+                            float(bg_region.latitude),
+                            float(bg_region.longitude),
+                        )
+                        if distance <= self.alert_radius_km:
+                            nearby_tokens.append(device.token)
+                    tokens = nearby_tokens
+
+                if tokens:
+                    label = {
+                        'CRITICAL': '🚨 CRITICAL WARNING',
+                        'HIGH': '⚠️ HIGH ALERT',
+                        'MEDIUM': '🔔 MODERATE ALERT',
+                        'LOW': 'ℹ️ LOW ALERT',
+                    }.get(severity, severity)
+                    
+                    if bg_region.name == 'All Regions':
+                        title = f'{label} — Global Broadcast'
+                    else:
+                        title = f'{label} — {bg_region.name}'
+
+                    body_message = message[:1000]
+
+                    for i in range(0, len(tokens), 500):
+                        chunk = tokens[i:i + 500]
+                        mc = messaging.MulticastMessage(
+                            tokens=chunk,
+                            notification=messaging.Notification(title=title, body=body_message),
+                            data={
+                                'alert_id': str(bg_alert.id),
+                                'severity': severity,
+                                'region_id': str(bg_region.id),
+                                'region_name': bg_region.name,
+                            },
+                            android=messaging.AndroidConfig(
+                                priority='high',
+                                notification=messaging.AndroidNotification(
+                                    sound='default',
+                                    default_sound=True,
+                                    notification_priority='PRIORITY_MAX',
+                                    notification_channel_id='risk_alerts',
+                                ),
+                            ),
+                            apns=messaging.APNSConfig(
+                                payload=messaging.APNSPayload(aps=messaging.Aps(sound='default'))
+                            ),
+                        )
+                        messaging.send_each_for_multicast(mc)
+            except Exception as exc:
+                print(f'[CreateAlertView] Background push notification error: {exc}')
+
+        # Launch background worker asynchronously
+        threading.Thread(
+            target=send_notifications_background,
+            args=(alert.id, region.id, severity, message, send_to_all),
+            daemon=True
+        ).start()
 
         return Response({
             'success': True,
@@ -512,8 +557,8 @@ class CreateAlertView(APIView):
             'severity': alert.severity,
             'region': region.name,
             'alert_radius_km': self.alert_radius_km,
-            'targeted_devices': len(tokens) if 'tokens' in locals() else 0,
-            'notifications_sent': notifications_sent,
+            'targeted_devices': targeted_count,
+            'notifications_sent': targeted_count,
             'message': 'Alert created and broadcast successfully.',
         }, status=status.HTTP_201_CREATED)
 
