@@ -42,7 +42,8 @@ def _find_nearest_region(latitude, longitude):
     nearest = None
     nearest_distance = None
 
-    for region in Region.objects.all():
+    # Exclude virtual 'All Regions' placeholder from nearest monitored calculations
+    for region in Region.objects.exclude(name='All Regions'):
         distance = _distance_km(
             latitude,
             longitude,
