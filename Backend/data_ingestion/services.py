@@ -103,9 +103,26 @@ def send_push_notification(region_name, risk_score):
         risk_score: Risk score (0-1 scale)
     """
     try:
+        import firebase_admin
         from firebase_admin import messaging
         from accounts.models import DeviceToken
+        from django.conf import settings
         
+        # Ensure firebase_admin is initialized
+        if not firebase_admin._apps:
+            import os
+            def _get_service_account_path():
+                path1 = os.path.join(settings.BASE_DIR, 'serviceAccountKey.json')
+                if os.path.exists(path1):
+                    return path1
+                path2 = os.path.join(os.path.dirname(settings.BASE_DIR), 'serviceAccountKey.json')
+                if os.path.exists(path2):
+                    return path2
+                return path1
+            cred_path = _get_service_account_path()
+            cred = firebase_admin.credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+
         # Get all registered device tokens
         tokens = list(DeviceToken.objects.values_list('token', flat=True))
         
@@ -113,28 +130,57 @@ def send_push_notification(region_name, risk_score):
             print(f"⚠️ No device tokens found. Skipping push notification.")
             return
         
-        # Create notification message
+        title = '⚠️ High Risk Alert!'
+        body_message = f'Landslide risk detected in {region_name} ({int(risk_score * 100)}%)'
+
+        # Create high-priority notification message
         message = messaging.MulticastMessage(
+            tokens=tokens,
             notification=messaging.Notification(
-                title='⚠️ High Risk Alert!',
-                body=f'Landslide risk detected in {region_name} ({int(risk_score * 100)}%)',
+                title=title,
+                body=body_message,
             ),
             data={
+                'type': 'HIGH_RISK_ALERT',
                 'region': region_name,
                 'risk_score': str(risk_score),
                 'alert_type': 'HIGH_RISK',
+                'title': title,
+                'message': body_message,
+                'sound': 'default',
             },
-            tokens=tokens,
+            android=messaging.AndroidConfig(
+                priority='high',
+                notification=messaging.AndroidNotification(
+                    title=title,
+                    body=body_message,
+                    sound='default',
+                    channel_id='risk_alerts',
+                ),
+            ),
+            apns=messaging.APNSConfig(
+                headers={'apns-priority': '10'},
+                payload=messaging.APNSPayload(
+                    aps=messaging.Aps(
+                        sound='default',
+                        badge=1,
+                        content_available=True,
+                    )
+                ),
+            ),
         )
         
-        # Send multicast message
-        response = messaging.send_multicast(message)
-        
-        print(f"✓ Sent push notifications to {response.success_count} device(s)")
-        if response.failure_count > 0:
-            print(f"⚠️ {response.failure_count} notification(s) failed to send")
+        # Send multicast message in chunks of 500
+        total_sent = 0
+        for i in range(0, len(tokens), 500):
+            chunk = tokens[i:i + 500]
+            message.tokens = chunk
+            response = messaging.send_each_for_multicast(message)
+            total_sent += response.success_count
+            print(f"✓ Sent push notifications chunk: {response.success_count} success, {response.failure_count} failed")
             
     except ImportError:
         print("⚠️ Firebase Admin SDK not initialized. Cannot send notifications.")
     except Exception as e:
         print(f"⚠️ Error sending push notification: {e}")
+
