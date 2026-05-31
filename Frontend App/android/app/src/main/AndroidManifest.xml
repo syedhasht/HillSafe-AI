@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Required for loading Google Fonts and network access -->
     <uses-permission android:name="android.permission.INTERNET"/>
     
@@ -46,10 +47,12 @@
         <!-- Firebase Cloud Messaging default notification channel and icon metadata -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="risk_alerts" />
+            android:value="risk_alerts"
+            tools:replace="android:value" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@mipmap/ic_launcher" />
+            android:resource="@mipmap/ic_launcher"
+            tools:replace="android:resource" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
