@@ -494,13 +494,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(
-                        phoneNumber,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.textSecondary,
+                      child: Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(
+                          phoneNumber,
+                          textAlign: TextAlign.left,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -515,15 +519,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(
-                        email,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: userProvider.email.isEmpty
-                              ? AppTheme.accentTeal
-                              : AppTheme.textSecondary,
+                      child: Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(
+                          email,
+                          textAlign: TextAlign.left,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: userProvider.email.isEmpty
+                                ? AppTheme.accentTeal
+                                : AppTheme.textSecondary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
