@@ -384,7 +384,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
         final totalSafe        = safetyData['total_safe']  ?? 0;
         final totalUsers       = safetyData['total_users'] ?? 0;
         final highRiskCount    = regions.where((r) => ((r['current_risk_score'] as num?)?.toDouble() ?? 0) >= 0.5).length;
-        final activeAlertCount = alerts.where((a) => a['is_active'] == true).length;
+        final alertCount       = alerts.length;
         final activeSosCount   = sosReqs.where((s) => s['status'] != 'RESOLVED').length;
         final loading          = snapshot.connectionState == ConnectionState.waiting;
 
@@ -427,8 +427,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                   const SizedBox(width: 12),
                   Expanded(child: _StatCard(
                     label: 'ACTIVE ALERTS',
-                    value: loading ? '–' : '$activeAlertCount',
-                    subtitle: activeAlertCount > 0 ? '$activeAlertCount unprocessed' : 'All clear',
+                    value: loading ? '–' : '$alertCount',
                     icon: LucideIcons.bell,
                     iconColor: _kAmber,
                     valueColor: _kAmber,
