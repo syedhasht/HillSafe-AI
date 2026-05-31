@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -408,8 +409,19 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    context.watch<ThemeProvider>();
-    return Scaffold(
+    final themeProvider = context.watch<ThemeProvider>();
+    final isDarkMode = themeProvider.isDarkMode;
+    final systemUiOverlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDarkMode ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF5F4F0),
+      systemNavigationBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
+    );
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: systemUiOverlayStyle,
+      child: Scaffold(
       // Light scaffold background
       backgroundColor: AppTheme.background,
       floatingActionButton: FloatingActionButton(
@@ -790,7 +802,7 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                 ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
               ],
             ),
-    );
+    ),);
   }
 
   Widget _buildLegendItem(Color color, String label) {

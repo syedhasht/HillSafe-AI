@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -183,8 +184,19 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    context.watch<ThemeProvider>();
-    return Scaffold(
+    final themeProvider = context.watch<ThemeProvider>();
+    final isDarkMode = themeProvider.isDarkMode;
+    final systemUiOverlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDarkMode ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF5F4F0),
+      systemNavigationBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
+    );
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: systemUiOverlayStyle,
+      child: Scaffold(
       // Light scaffold background — map fills the body, scaffold just shows in safe area
       backgroundColor: AppTheme.background,
       body: SafeArea(
@@ -507,10 +519,11 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _verificationType == 'SOS' ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+                          color: const Color(0xFF0F172A), // Premium Dark Navy
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _verificationType == 'SOS' ? const Color(0xFFEF4444) : const Color(0xFF22C55E),
@@ -526,10 +539,10 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
                         ),
                         child: Text(
                           '${_verificationName} (${_verificationType})',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.bold,
-                            color: _verificationType == 'SOS' ? const Color(0xFF991B1B) : const Color(0xFF15803D),
+                            color: Colors.white, // White text
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -554,7 +567,7 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
             ],
           ),
       ],
-    );
+    ),);
   }
 
   // ── Top bar (white bg, dark text) ─────────────────────────────────────────
