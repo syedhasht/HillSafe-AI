@@ -41,7 +41,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _showEditProfileDialog() async {
     final langProvider = context.read<LanguageProvider>();
     final userProvider = context.read<UserProvider>();
-    final isAuthority = userProvider.userType == 'authority';
 
     final result = await showDialog<Map<String, String>>(
       context: context,
@@ -49,10 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         langProvider: langProvider,
         initialName: userProvider.username,
         initialEmail: userProvider.email,
-        initialPhone: isAuthority
-            ? userProvider.phoneNumber
-            : _normalizeProfilePhone(userProvider.phoneNumber),
-        showPhone: !isAuthority,
+        initialPhone: _normalizeProfilePhone(userProvider.phoneNumber),
         normalizePhone: _normalizeProfilePhone,
         isValidPhone: _isValidPakistanPhone,
         protectPhonePrefix: _protectPakistanPhonePrefix,
@@ -69,14 +65,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final success = await userProvider.updateProfile(
           name: result['name'] ?? '',
           email: result['email'] ?? '',
-          phoneNumber: result['phoneNumber']?.isEmpty == true
-              ? null
-              : result['phoneNumber'],
-          notify: false,
+          phoneNumber: result['phoneNumber'] ?? '',
         );
 
         if (!mounted) return;
-        if (success) setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(success
@@ -91,15 +83,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _normalizeProfilePhone(String value) {
     final digits = value.replaceAll(RegExp(r'\D'), '');
-    final withoutCountry = digits.startsWith('92') ? digits.substring(2) : digits;
-    final local = withoutCountry.length > 10
-        ? withoutCountry.substring(withoutCountry.length - 10)
-        : withoutCountry;
-    if (local.isEmpty) return '+92 ';
-    if (local.length > 10) {
-      final trimmed = local.substring(0, 10);
-      return '+92 ${trimmed.substring(0, 3)}-${trimmed.substring(3)}';
+    var local = digits.startsWith('92') ? digits.substring(2) : digits;
+    if (local.startsWith('0')) {
+      local = local.substring(1);
     }
+    if (local.length > 10) {
+      local = local.substring(0, 10);
+    }
+    if (local.isEmpty) return '+92 ';
     if (local.length <= 3) return '+92 $local';
     return '+92 ${local.substring(0, 3)}-${local.substring(3)}';
   }
@@ -112,7 +103,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   bool _isValidPakistanPhone(String value) {
     final digits = value.replaceAll(RegExp(r'\D'), '');
-    final local = digits.startsWith('92') ? digits.substring(2) : digits;
+    var local = digits.startsWith('92') ? digits.substring(2) : digits;
+    if (local.startsWith('0')) {
+      local = local.substring(1);
+    }
     return local.length == 10;
   }
 
@@ -667,7 +661,6 @@ class _EditProfileDialog extends StatefulWidget {
     required this.initialName,
     required this.initialEmail,
     required this.initialPhone,
-    required this.showPhone,
     required this.normalizePhone,
     required this.isValidPhone,
     required this.protectPhonePrefix,
@@ -678,7 +671,6 @@ class _EditProfileDialog extends StatefulWidget {
   final String initialName;
   final String initialEmail;
   final String initialPhone;
-  final bool showPhone;
   final String Function(String value) normalizePhone;
   final bool Function(String value) isValidPhone;
   final void Function(TextEditingController controller) protectPhonePrefix;
@@ -717,21 +709,19 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
   }
 
   void _save() {
-    String phoneNumber = '';
-    if (widget.showPhone) {
-      phoneNumber = widget.normalizePhone(_phoneController.text);
-      if (!widget.isValidPhone(phoneNumber)) {
-        setState(() {
-          _phoneError = widget.langProvider.tr('Enter exactly 10 digits after +92');
-        });
-        return;
-      }
+    final phoneNumber = widget.normalizePhone(_phoneController.text);
+    final hasPhoneDigits = phoneNumber.replaceAll(RegExp(r'\D'), '').length > 2;
+    if (hasPhoneDigits && !widget.isValidPhone(phoneNumber)) {
+      setState(() {
+        _phoneError = widget.langProvider.tr('Enter exactly 10 digits after +92');
+      });
+      return;
     }
 
     Navigator.pop(context, {
       'name': _nameController.text.trim(),
       'email': _emailController.text.trim(),
-      'phoneNumber': phoneNumber,
+      'phoneNumber': hasPhoneDigits ? phoneNumber : '',
     });
   }
 
@@ -754,30 +744,28 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
               autofocus: true,
             ),
             const SizedBox(height: 16),
-            if (widget.showPhone) ...[
-              TextField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s]')),
-                ],
-                decoration: InputDecoration(
-                  labelText: langProvider.tr('Phone Number'),
-                  hintText: '+92 300-1234567',
-                  helperText: _phoneError == null
-                      ? langProvider.tr('Only edit digits after +92')
-                      : null,
-                  errorText: _phoneError,
-                ),
-                onTap: () => widget.movePhoneCursorAfterPrefix(_phoneController),
-                onChanged: (_) {
-                  if (_phoneError != null) {
-                    setState(() => _phoneError = null);
-                  }
-                },
+            TextField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s]')),
+              ],
+              decoration: InputDecoration(
+                labelText: langProvider.tr('Phone Number'),
+                hintText: '+92 300-1234567',
+                helperText: _phoneError == null
+                    ? langProvider.tr('Only edit 10 digits after +92')
+                    : null,
+                errorText: _phoneError,
               ),
-              const SizedBox(height: 16),
-            ],
+              onTap: () => widget.movePhoneCursorAfterPrefix(_phoneController),
+              onChanged: (_) {
+                if (_phoneError != null) {
+                  setState(() => _phoneError = null);
+                }
+              },
+            ),
+            const SizedBox(height: 16),
             TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,

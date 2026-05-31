@@ -20,6 +20,9 @@ def sync_role_profile(user):
             'email': user.email or '',
         },
     )
+    if not user.email and profile.email:
+        user.email = profile.email
+        user.save(update_fields=['email'])
     fields = []
     if profile.username != user.username:
         profile.username = user.username
@@ -75,6 +78,18 @@ class ProfileView(APIView):
 
         user.email = email
         update_fields = ['username', 'email']
+
+        if phone_number:
+            digits = ''.join(ch for ch in phone_number if ch.isdigit())
+            local_phone = digits[2:] if digits.startswith('92') else digits
+            if local_phone.startswith('0'):
+                local_phone = local_phone[1:]
+            if len(local_phone) != 10:
+                return Response(
+                    {'error': 'Phone number must contain exactly 10 digits after +92.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            phone_number = f'+92 {local_phone[:3]}-{local_phone[3:]}'
 
         if phone_number and phone_number != user.phone_number:
             from .models import User
