@@ -490,7 +490,17 @@ class CreateAlertView(APIView):
 
                 if not firebase_admin._apps:
                     import os
-                    cred_path = os.path.join(settings.BASE_DIR, 'serviceAccountKey.json')
+                    # Robust path resolution to support monorepos and Render secret files
+                    def _get_service_account_path():
+                        path1 = os.path.join(settings.BASE_DIR, 'serviceAccountKey.json')
+                        if os.path.exists(path1):
+                            return path1
+                        path2 = os.path.join(os.path.dirname(settings.BASE_DIR), 'serviceAccountKey.json')
+                        if os.path.exists(path2):
+                            return path2
+                        return path1
+
+                    cred_path = _get_service_account_path()
                     cred = firebase_admin.credentials.Certificate(cred_path)
                     firebase_admin.initialize_app(cred)
 
