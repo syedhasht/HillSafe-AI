@@ -802,7 +802,7 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                 ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
               ],
             ),
-    ),),);
+    ),);
   }
 
   Widget _buildLegendItem(Color color, String label) {

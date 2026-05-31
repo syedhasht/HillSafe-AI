@@ -384,7 +384,7 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
           ],
         ),
       ),
-    );
+    ),);
   }
 
   // ── Map widget ─────────────────────────────────────────────────────────────
@@ -567,7 +567,7 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
             ],
           ),
       ],
-    ),),),);
+    );
   }
 
   // ── Top bar (white bg, dark text) ─────────────────────────────────────────
