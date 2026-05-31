@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend_app/services/api_service.dart';
+import 'package:frontend_app/services/date_helper.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
@@ -172,7 +173,7 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
   }
 
   Widget _buildReportCard(Map<String, dynamic> report, int index) {
-    final timestamp = DateTime.parse(report['timestamp']);
+    final timestamp = DateHelper.toPakistanTime(report['timestamp']);
     final formattedDate = DateFormat('MMM d, y • h:mm a').format(timestamp);
     final hasImage = report['image'] != null;
     final areaName = (report['area_name'] as String?)?.trim();
@@ -189,9 +190,12 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: AppTheme.borderColor),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _showReportDetail(report),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -372,12 +376,268 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
               ],
             ),
           ],
+          ),
         ),
       ),
     )
     .animate()
     .fadeIn(duration: 400.ms, delay: (50 * index).ms)
     .slideY(begin: 0.1, end: 0);
+  }
+
+  void _showReportDetail(Map<String, dynamic> report) {
+    final lat = _asDouble(report['latitude']);
+    final lon = _asDouble(report['longitude']);
+    final timeLabel = DateHelper.format(report['timestamp'], pattern: 'MMM d, yyyy • h:mm a');
+    final name = report['user_name']?.toString() ?? 'Unknown resident';
+    final areaName = report['area_name']?.toString().trim();
+    final regionName = report['region_name']?.toString() ?? 'Your Location';
+    final district = report['region_district']?.toString();
+    final placeName = areaName != null && areaName.isNotEmpty ? areaName : regionName;
+    final description = report['description']?.toString() ?? 'No description provided.';
+    final radiusKm = _asDouble(report['report_radius_km']);
+    final isVerified = report['is_verified'] == true;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 18, 16, 22),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF92400E), Color(0xFFF59E0B), Color(0xFFFBBF24)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.16),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white.withOpacity(0.45)),
+                      ),
+                      child: const Icon(LucideIcons.fileWarning, color: Colors.white, size: 30),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Resident Report',
+                            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, height: 1.1),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            timeLabel,
+                            style: TextStyle(color: Colors.white.withOpacity(0.88), fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(LucideIcons.x, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _detailTile(icon: LucideIcons.user, label: 'Resident', value: name, accentColor: Colors.orange),
+                      _detailTile(
+                        icon: LucideIcons.mapPin,
+                        label: 'Place',
+                        value: (district == null || district.isEmpty || district == '50 km radius')
+                            ? placeName
+                            : '$placeName, $district',
+                        accentColor: Colors.orange,
+                      ),
+                      if (radiusKm != null)
+                        _detailTile(
+                          icon: LucideIcons.radar,
+                          label: 'Report Radius',
+                          value: '${radiusKm.toStringAsFixed(radiusKm.truncateToDouble() == radiusKm ? 0 : 1)} km',
+                          accentColor: Colors.orange,
+                        ),
+                      _detailTile(
+                        icon: LucideIcons.messageSquareText,
+                        label: 'Description',
+                        value: description,
+                        accentColor: Colors.orange,
+                      ),
+                      _detailTile(
+                        icon: isVerified ? LucideIcons.checkCircle : LucideIcons.alertCircle,
+                        label: 'Status',
+                        value: isVerified ? 'Verified' : 'Pending Verification',
+                        accentColor: isVerified ? Colors.green : Colors.orange,
+                      ),
+                      if (lat != null && lon != null)
+                        _coordsTile(
+                          dialogContext: ctx,
+                          lat: lat,
+                          lon: lon,
+                          residentName: name,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              _dialogButton(ctx: ctx),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  double? _asDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  Widget _detailTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color accentColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.borderColor),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(color: accentColor.withOpacity(0.1), shape: BoxShape.circle),
+            child: Icon(icon, color: accentColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(value, style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w700, height: 1.25)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _coordsTile({
+    required BuildContext dialogContext,
+    required double lat,
+    required double lon,
+    required String residentName,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          Navigator.pop(dialogContext);
+          Navigator.pushNamed(
+            context,
+            '/authority_map',
+            arguments: {
+              'latitude': lat,
+              'longitude': lon,
+              'name': residentName,
+              'type': 'REPORT',
+            },
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
+                child: const Icon(LucideIcons.crosshair, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Exact Coordinates (Tap to Verify)',
+                      style: TextStyle(color: Color(0xFF92400E), fontSize: 11, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}',
+                      style: const TextStyle(color: Color(0xFF111827), fontSize: 14, fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(LucideIcons.map, color: Color(0xFF92400E), size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dialogButton({required BuildContext ctx}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: () => Navigator.pop(ctx),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w800)),
+        ),
+      ),
+    );
   }
 
   Widget _buildEmptyState() {

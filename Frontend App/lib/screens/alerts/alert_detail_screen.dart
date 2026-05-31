@@ -5,8 +5,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:provider/provider.dart';
-import 'package:frontend_app/providers/user_provider.dart';
 import 'package:frontend_app/services/date_helper.dart';
 
 /// Alert Detail Screen - Critical Warning Display
@@ -23,10 +21,6 @@ class AlertDetailScreen extends StatelessWidget {
     // Theme colors based on severity
     final themeColor = _getSeverityColor(severity);
     final bgColor = isCritical ? const Color(0xFF0F0F0F) : const Color(0xFF1A1A1A);
-
-    // Access user provider to check if logged in user is authority
-    final userProvider = context.watch<UserProvider>();
-    final isAuthority = userProvider.userType == 'authority';
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -69,12 +63,7 @@ class AlertDetailScreen extends StatelessWidget {
                   .fadeIn(duration: 600.ms, delay: 800.ms)
                   .slideY(begin: 0.1, end: 0),
 
-              // Check-in Button (Hiding for authority accounts)
-              if (!isAuthority)
-                _buildCheckInButton(context)
-                    .animate()
-                    .fadeIn(duration: 600.ms, delay: 1000.ms)
-                    .scale(begin: const Offset(0.8, 0.8)),
+              const SizedBox(height: AppTheme.spacingXLarge),
             ],
           ),
         ),
@@ -504,46 +493,6 @@ class AlertDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCheckInButton(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spacingLarge,
-        vertical: AppTheme.spacingXLarge,
-      ),
-      child: ElevatedButton(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✓ Safety check-in recorded'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-          ),
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(LucideIcons.checkCircle2, size: 24),
-            SizedBox(width: AppTheme.spacingSmall),
-            Text(
-              'I am Safe - Check In',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _InfoRow extends StatelessWidget {
