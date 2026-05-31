@@ -561,10 +561,7 @@ class CreateAlertView(APIView):
                                     title=title,
                                     body=body_message,
                                     sound='default',
-                                    default_sound=True,
-                                    notification_priority='PRIORITY_MAX',
-                                    notification_channel_id='risk_alerts',
-                                    default_vibrate_timings=True,
+                                    channel_id='risk_alerts',
                                 ),
                             ),
                             apns=messaging.APNSConfig(
