@@ -197,45 +197,59 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: AppTheme.accentTealLight,
-                      radius: 16,
-                      child: Icon(LucideIcons.user, size: 16, color: AppTheme.accentTeal),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      report['user_name'] ?? 'Unknown User',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-                // Region badge — keep orange status color (warning constant)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                  ),
+                Expanded(
                   child: Row(
                     children: [
-                      const Icon(LucideIcons.mapPin, size: 12, color: Colors.orange),
-                      const SizedBox(width: 4),
-                      Text(
-                        report['region_name'] ?? 'Your Location',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.orange,
-                          fontWeight: FontWeight.w600,
+                      CircleAvatar(
+                        backgroundColor: AppTheme.accentTealLight,
+                        radius: 16,
+                        child: Icon(LucideIcons.user, size: 16, color: AppTheme.accentTeal),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          report['user_name'] ?? 'Unknown User',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: AppTheme.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Region badge — keep orange status color (warning constant)
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(LucideIcons.mapPin, size: 12, color: Colors.orange),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            report['region_name'] ?? 'Your Location',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
