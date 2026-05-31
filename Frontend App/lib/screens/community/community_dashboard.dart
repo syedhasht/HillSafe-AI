@@ -12,6 +12,7 @@ import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/theme/theme_provider.dart';
 import 'package:frontend_app/providers/language_provider.dart';
 import 'package:frontend_app/services/api_service.dart';
+import 'package:frontend_app/services/date_helper.dart';
 import 'package:frontend_app/screens/community/risk_map_screen.dart';
 import 'package:frontend_app/widgets/weather_risk_widget.dart';
 
@@ -218,7 +219,7 @@ class _CommunityDashboardState extends State<CommunityDashboard>
 
   DateTime? _parseApiDateTime(dynamic value) {
     if (value == null) return null;
-    return DateTime.tryParse(value.toString())?.toLocal();
+    return DateHelper.toPakistanTime(value);
   }
 
   void _applySOSStatus(Map<String, dynamic> data) {
@@ -1468,9 +1469,7 @@ class _RegionCard extends StatelessWidget {
     if (timestamp == null) return 'Unknown';
 
     try {
-      final dateTime = DateTime.parse(timestamp);
-      final now = DateTime.now();
-      final difference = now.difference(dateTime);
+      final difference = DateHelper.getDifferenceFromNow(timestamp);
 
       if (difference.inMinutes < 1) {
         return 'Just now';
@@ -1479,7 +1478,7 @@ class _RegionCard extends StatelessWidget {
       } else if (difference.inHours < 24) {
         return '${difference.inHours}h ago';
       } else {
-        return DateFormat('MMM d, h:mm a').format(dateTime);
+        return DateHelper.format(timestamp, pattern: 'MMM d, h:mm a');
       }
     } catch (e) {
       return 'Unknown';

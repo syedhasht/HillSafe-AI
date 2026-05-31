@@ -7,6 +7,7 @@ import 'package:frontend_app/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:frontend_app/providers/user_provider.dart';
+import 'package:frontend_app/services/date_helper.dart';
 
 /// Alert Detail Screen - Critical Warning Display
 /// High urgency design with red/black theme for critical alerts
@@ -185,7 +186,7 @@ class AlertDetailScreen extends StatelessWidget {
   }
 
   Widget _buildAlertInfo(BuildContext context, Map<String, dynamic> alert, Color color) {
-    final timestamp = DateTime.parse(alert['timestamp']).toLocal();
+    final timestamp = DateHelper.toPakistanTime(alert['timestamp']);
     
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLarge),
