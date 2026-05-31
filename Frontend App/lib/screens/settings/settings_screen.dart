@@ -475,16 +475,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(width: AppTheme.spacingMedium),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  isRtl ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  username,
-                  textAlign: isRtl ? TextAlign.right : TextAlign.left,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
+                Align(
+                  alignment:
+                      isRtl ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Text(
+                    username,
+                    textAlign: isRtl ? TextAlign.right : TextAlign.left,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 4),
