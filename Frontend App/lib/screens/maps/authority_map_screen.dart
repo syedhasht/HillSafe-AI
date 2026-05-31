@@ -37,6 +37,8 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
   String? _verificationName;
   String? _verificationType;
   bool _isFirstLoad = true;
+  bool _isMapReady = false;
+  int _tileRefreshNonce = 0;
 
   // Pakistan center
   static const LatLng _pakistanCenter = LatLng(34.0, 71.5);
@@ -66,9 +68,8 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
           _verificationName = args['name']?.toString() ?? 'Resident';
           _verificationType = args['type']?.toString() ?? 'SAFE';
           
-          // Animate and center camera to this coordinate immediately on startup
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _mapController.move(_verificationCoords!, 16.0);
+            _focusVerificationLocation();
           });
         }
       }
@@ -94,6 +95,11 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
         // Fit camera to show all region markers after load (only if NOT verifying a specific coordinate)
         if (!_isVerifyingLocation) {
           WidgetsBinding.instance.addPostFrameCallback((_) => _fitCamera());
+        } else {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _focusVerificationLocation();
+            _refreshMapTiles();
+          });
         }
       }
     } catch (e) {
@@ -107,6 +113,7 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
   }
 
   void _fitCamera() {
+    if (!_isMapReady) return;
     try {
       final points = _regions
           .map(_regionLatLng)
@@ -146,6 +153,34 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
     } catch (e) {
       debugPrint('Authority camera fit skipped: $e');
     }
+  }
+
+  void _handleMapReady() {
+    if (!mounted) return;
+    _isMapReady = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_isVerifyingLocation) {
+        _focusVerificationLocation();
+      } else {
+        _fitCamera();
+      }
+      _refreshMapTiles();
+    });
+  }
+
+  void _focusVerificationLocation() {
+    if (!_isMapReady || _verificationCoords == null) return;
+    try {
+      _mapController.move(_verificationCoords!, 16.0);
+    } catch (e) {
+      debugPrint('Authority map verification focus skipped: $e');
+    }
+  }
+
+  void _refreshMapTiles() {
+    if (!mounted) return;
+    setState(() => _tileRefreshNonce++);
   }
 
   LatLng? _regionLatLng(Map<String, dynamic> region) {
@@ -397,6 +432,7 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
         initialZoom: 6.0,
         minZoom: 4.0,
         maxZoom: 16.0,
+        onMapReady: _handleMapReady,
         // Disables fling/inertia animation — the root cause of the
         // LatLng(NaN, NaN) crash on Android. The physics deceleration
         // divides by a near-zero timestep producing NaN coordinates.
@@ -407,9 +443,11 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
       children: [
         // Base tile layer
         TileLayer(
+          key: ValueKey('authority-tiles-${_showSatellite ? 'satellite' : 'street'}-$_tileRefreshNonce'),
           urlTemplate: _showSatellite 
               ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
               : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+          subdomains: _showSatellite ? const [] : const ['a', 'b', 'c', 'd'],
           userAgentPackageName: 'com.hillsafe.app',
           maxNativeZoom: 19,
         ),
@@ -651,7 +689,12 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
 
   Widget _buildSatelliteButton() {
     return GestureDetector(
-      onTap: () => setState(() => _showSatellite = !_showSatellite),
+      onTap: () {
+        setState(() {
+          _showSatellite = !_showSatellite;
+          _tileRefreshNonce++;
+        });
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
