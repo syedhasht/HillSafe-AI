@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -40,20 +42,39 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
-    // Explicitly create the high-priority "risk_alerts" notification channel on Android
+    // Explicitly create the high-priority notification channels on Android
     final androidPlugin = _notifications
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     if (androidPlugin != null) {
-      const AndroidNotificationChannel channel = AndroidNotificationChannel(
-        'risk_alerts', // id matches backend notification_channel_id
-        'Risk Alerts', // name
-        description: 'Critical landslide risk alerts', // description
-        importance: Importance.max, // Max importance forces heads-up / status-bar notifications
+      // 1. Critical Alerts Channel (Red buzzer, intense vibration, max importance)
+      final AndroidNotificationChannel criticalChannel = AndroidNotificationChannel(
+        'critical_alerts',
+        '🚨 Critical Emergency Alerts',
+        description: 'Immediate landslide danger warnings',
+        importance: Importance.max,
         playSound: true,
         enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000, 500, 1000]),
+        ledColor: const Color(0xFFD32F2F),
+        enableLights: true,
       );
-      await androidPlugin.createNotificationChannel(channel);
-      print('Android Notification Channel "risk_alerts" created with max importance');
+
+      // 2. Risk Alerts Channel (Normal alerts, standard vibration, high importance)
+      final AndroidNotificationChannel normalChannel = AndroidNotificationChannel(
+        'risk_alerts',
+        '🔔 Safety Alerts & Updates',
+        description: 'Landslide risk updates and warnings',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 500, 250, 500]),
+        ledColor: const Color(0xFF0F172A),
+        enableLights: true,
+      );
+
+      await androidPlugin.createNotificationChannel(criticalChannel);
+      await androidPlugin.createNotificationChannel(normalChannel);
+      print('Android Notification Channels initialized successfully');
     }
 
     _isInitialized = true;
@@ -73,8 +94,6 @@ class NotificationService {
   /// Handle notification tap
   void _onNotificationTapped(NotificationResponse response) {
     print('Notification tapped: ${response.payload}');
-    // Navigate to appropriate screen based on payload
-    // This can be enhanced with navigation logic
   }
 
   /// Show risk alert notification
@@ -93,28 +112,43 @@ class NotificationService {
       return;
     }
 
-    const AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
-      'risk_alerts',
-      'Risk Alerts',
-      channelDescription: 'Critical landslide risk alerts',
+    final isCritical = riskScore >= 0.8;
+    final channelId = isCritical ? 'critical_alerts' : 'risk_alerts';
+    final largeIcon = isCritical ? 'ic_red_buzzer' : 'ic_normal_buzzer';
+    final color = isCritical ? const Color(0xFFD32F2F) : const Color(0xFF0F172A);
+
+    final title = isCritical
+        ? '🚨 CRITICAL WARNING: Landslide Danger in $regionName'
+        : '⚠️ Safety Update: $regionName';
+    final body = message ??
+        'Landslide risk increased to ${(riskScore * 100).toInt()}%. Weather conditions have changed in your area. Stay alert!';
+
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      channelId,
+      isCritical ? '🚨 Critical Emergency Alerts' : '🔔 Safety Alerts & Updates',
+      channelDescription: isCritical ? 'Immediate landslide danger warnings' : 'Landslide risk updates and warnings',
       importance: Importance.max,
       priority: Priority.max,
       showWhen: true,
       enableVibration: true,
+      vibrationPattern: isCritical
+          ? Int64List.fromList([0, 1000, 500, 1000, 500, 1000, 500, 1000])
+          : Int64List.fromList([0, 500, 250, 500]),
       playSound: true,
-      icon: '@mipmap/ic_launcher',
+      color: color,
+      largeIcon: DrawableResourceAndroidBitmap(largeIcon),
+      styleInformation: BigTextStyleInformation(
+        body,
+        contentTitle: title,
+        summaryText: isCritical ? '🚨 EMERGENCY' : '🔔 UPDATE',
+      ),
     );
 
-    const NotificationDetails platformDetails =
+    final NotificationDetails platformDetails =
         NotificationDetails(android: androidDetails);
 
-    final title = '⚠️ High Risk Alert: $regionName';
-    final body = message ??
-        'Landslide risk increased to ${(riskScore * 100).toInt()}%. Weather conditions have changed in your area. Stay alert!';
-
     await _notifications.show(
-      id: 0, // Notification ID (0 will replace previous notification)
+      id: 0,
       title: title,
       body: body,
       notificationDetails: platformDetails,
@@ -128,30 +162,44 @@ class NotificationService {
   Future<void> showNotification({
     required String title,
     required String body,
+    String? severity,
     String? payload,
   }) async {
     if (!_isInitialized) {
       await initialize();
     }
 
-    const AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
-      'risk_alerts',
-      'Risk Alerts',
-      channelDescription: 'Critical landslide risk alerts',
+    final isCritical = severity?.toUpperCase() == 'CRITICAL';
+    final channelId = isCritical ? 'critical_alerts' : 'risk_alerts';
+    final largeIcon = isCritical ? 'ic_red_buzzer' : 'ic_normal_buzzer';
+    final color = isCritical ? const Color(0xFFD32F2F) : const Color(0xFF0F172A);
+
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      channelId,
+      isCritical ? '🚨 Critical Emergency Alerts' : '🔔 Safety Alerts & Updates',
+      channelDescription: isCritical ? 'Immediate landslide danger warnings' : 'Landslide risk updates and warnings',
       importance: Importance.max,
       priority: Priority.max,
       showWhen: true,
       enableVibration: true,
+      vibrationPattern: isCritical
+          ? Int64List.fromList([0, 1000, 500, 1000, 500, 1000, 500, 1000])
+          : Int64List.fromList([0, 500, 250, 500]),
       playSound: true,
-      icon: '@mipmap/ic_launcher',
+      color: color,
+      largeIcon: DrawableResourceAndroidBitmap(largeIcon),
+      styleInformation: BigTextStyleInformation(
+        body,
+        contentTitle: title,
+        summaryText: isCritical ? '🚨 EMERGENCY' : '🔔 UPDATE',
+      ),
     );
 
-    const NotificationDetails platformDetails =
+    final NotificationDetails platformDetails =
         NotificationDetails(android: androidDetails);
 
     await _notifications.show(
-      id: 1, // Different ID for general notifications
+      id: 1,
       title: title,
       body: body,
       notificationDetails: platformDetails,
@@ -169,4 +217,3 @@ class NotificationService {
     await _notifications.cancel(id: id);
   }
 }
-

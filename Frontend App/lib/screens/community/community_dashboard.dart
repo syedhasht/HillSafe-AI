@@ -959,19 +959,17 @@ class _CommunityDashboardState extends State<CommunityDashboard>
     final langProvider = context.watch<LanguageProvider>();
 
     final brightness = Theme.of(context).brightness;
-    final overlayStyle = brightness == Brightness.dark
-        ? SystemUiOverlayStyle.light.copyWith(
-            statusBarColor: const Color(0xFF0F172A),
-            statusBarBrightness: Brightness.dark,
-            systemNavigationBarColor: const Color(0xFF0F172A),
-            systemNavigationBarIconBrightness: Brightness.light,
-          )
-        : SystemUiOverlayStyle.dark.copyWith(
-            statusBarColor: Colors.white,
-            statusBarBrightness: Brightness.light,
-            systemNavigationBarColor: const Color(0xFFF5F4F0),
-            systemNavigationBarIconBrightness: Brightness.dark,
-          );
+    final overlayStyle = SystemUiOverlayStyle.light.copyWith(
+      statusBarColor: const Color(0xFF0F172A),
+      statusBarBrightness: Brightness.dark,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: brightness == Brightness.dark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF5F4F0),
+      systemNavigationBarIconBrightness: brightness == Brightness.dark
+          ? Brightness.light
+          : Brightness.dark,
+    );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlayStyle,

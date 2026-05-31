@@ -209,9 +209,9 @@ class AppTheme {
         centerTitle: false,
         surfaceTintColor: Colors.transparent,
         systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: lightSurface,
-          statusBarIconBrightness: Brightness.dark, // Dark status bar icons in light mode!
-          statusBarBrightness: Brightness.light, // For iOS
+          statusBarColor: Color(0xFF0F172A),
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
           systemNavigationBarColor: Color(0xFFF5F4F0),
           systemNavigationBarIconBrightness: Brightness.dark,
         ),
@@ -336,9 +336,9 @@ class AppTheme {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: darkSurface,
-          statusBarIconBrightness: Brightness.light, // Light status bar icons in dark mode!
-          statusBarBrightness: Brightness.dark, // For iOS
+          statusBarColor: Color(0xFF0F172A),
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
           systemNavigationBarColor: Color(0xFF0F172A),
           systemNavigationBarIconBrightness: Brightness.light,
         ),

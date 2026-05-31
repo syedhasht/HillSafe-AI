@@ -561,7 +561,7 @@ class CreateAlertView(APIView):
                                     title=title,
                                     body=body_message,
                                     sound='default',
-                                    channel_id='risk_alerts',
+                                    channel_id='critical_alerts' if severity == 'CRITICAL' else 'risk_alerts',
                                 ),
                             ),
                             apns=messaging.APNSConfig(

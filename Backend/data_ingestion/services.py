@@ -155,7 +155,7 @@ def send_push_notification(region_name, risk_score):
                     title=title,
                     body=body_message,
                     sound='default',
-                    channel_id='risk_alerts',
+                    channel_id='critical_alerts' if risk_score >= 0.8 else 'risk_alerts',
                 ),
             ),
             apns=messaging.APNSConfig(

@@ -65,9 +65,11 @@ class SafetyController extends ChangeNotifier {
         print('SafetyController: Foreground FCM received: ${message.notification?.title}');
         final title = message.notification?.title ?? 'Emergency Alert';
         final body = message.notification?.body ?? '';
+        final severity = message.data['severity'] ?? (message.data['alert_type'] == 'HIGH_RISK' ? 'HIGH' : 'MEDIUM');
         _notificationService.showNotification(
           title: title,
           body: body,
+          severity: severity,
           payload: message.data.toString(),
         );
       });

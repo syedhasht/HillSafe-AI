@@ -358,11 +358,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: AppTheme.surface,
         foregroundColor: AppTheme.textPrimary,
         systemOverlayStyle: SystemUiOverlayStyle(
-          statusBarColor: AppTheme.surface,
-          statusBarIconBrightness:
-              themeProvider.isDarkMode ? Brightness.light : Brightness.dark,
-          statusBarBrightness:
-              themeProvider.isDarkMode ? Brightness.dark : Brightness.light,
+          statusBarColor: const Color(0xFF0F172A),
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
           systemNavigationBarColor: AppTheme.background,
           systemNavigationBarIconBrightness:
               themeProvider.isDarkMode ? Brightness.light : Brightness.dark,

@@ -63,12 +63,12 @@ void main() async {
   // Don't await here to prevent blocking app startup (especially for permissions)
   safetyController.initialize();
 
-  // Initialize default dark overlay style for visible status bar icons on light startup background
+  // Initialize default status bar style with dark navy background and white icons
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
-      statusBarColor: Colors.white,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
+      statusBarColor: Color(0xFF0F172A),
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
       systemNavigationBarColor: Color(0xFFF5F4F0),
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
@@ -114,12 +114,12 @@ class HillSafeApp extends StatelessWidget {
               maxScaleFactor: 1.15,
             );
 
-            // Dynamically set system status bar and navigation bar styles reactively
+            // Dynamically set system status bar to dark navy with high-visibility white text/icons
             SystemChrome.setSystemUIOverlayStyle(
               SystemUiOverlayStyle(
-                statusBarColor: themeProvider.isDarkMode ? const Color(0xFF0F172A) : Colors.white,
-                statusBarIconBrightness: themeProvider.isDarkMode ? Brightness.light : Brightness.dark,
-                statusBarBrightness: themeProvider.isDarkMode ? Brightness.dark : Brightness.light,
+                statusBarColor: const Color(0xFF0F172A),
+                statusBarIconBrightness: Brightness.light,
+                statusBarBrightness: Brightness.dark,
                 systemNavigationBarColor: themeProvider.isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF5F4F0),
                 systemNavigationBarIconBrightness: themeProvider.isDarkMode ? Brightness.light : Brightness.dark,
               ),
