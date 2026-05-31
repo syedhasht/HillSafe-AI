@@ -44,6 +44,9 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      final userProvider = context.read<UserProvider>();
+      final themeProvider = context.read<ThemeProvider>();
+      final languageProvider = context.read<LanguageProvider>();
       final error = await _apiService.loginWithError(
         _usernameController.text.trim(),
         '',
@@ -60,18 +63,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (error != null) return;
 
-      await context.read<UserProvider>().login(
+      await userProvider.login(
             await _apiService.getUsername() ?? _usernameController.text.trim(),
             'authority',
             phoneNumber: await _apiService.getPhoneNumber() ?? '',
             email: await _apiService.getEmail() ?? '',
           );
+      await userProvider.refreshProfileFromDb();
       final prefs = await SharedPreferences.getInstance();
       final isDark = prefs.getBool('isDarkMode') ?? false;
       if (mounted) {
-        await context.read<ThemeProvider>().toggleTheme(isDark);
+        await themeProvider.toggleTheme(isDark);
       }
-      await context.read<LanguageProvider>().loadLanguage();
+      await languageProvider.loadLanguage();
 
       if (!mounted) return;
 

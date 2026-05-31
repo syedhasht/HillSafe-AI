@@ -41,6 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _showEditProfileDialog() async {
     final langProvider = context.read<LanguageProvider>();
     final userProvider = context.read<UserProvider>();
+    final isAuthority = userProvider.userType == 'authority';
 
     final result = await showDialog<Map<String, String>>(
       context: context,
@@ -48,7 +49,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         langProvider: langProvider,
         initialName: userProvider.username,
         initialEmail: userProvider.email,
-        initialPhone: _normalizeProfilePhone(userProvider.phoneNumber),
+        initialPhone: isAuthority
+            ? userProvider.phoneNumber
+            : _normalizeProfilePhone(userProvider.phoneNumber),
+        showPhone: !isAuthority,
         normalizePhone: _normalizeProfilePhone,
         isValidPhone: _isValidPakistanPhone,
         protectPhonePrefix: _protectPakistanPhonePrefix,
@@ -65,7 +69,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final success = await userProvider.updateProfile(
           name: result['name'] ?? '',
           email: result['email'] ?? '',
-          phoneNumber: result['phoneNumber'] ?? '',
+          phoneNumber: result['phoneNumber']?.isEmpty == true
+              ? null
+              : result['phoneNumber'],
           notify: false,
         );
 
@@ -346,7 +352,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
-    final userProvider = context.read<UserProvider>();
+    final userProvider = context.watch<UserProvider>();
     final langProvider = context.watch<LanguageProvider>();
     
     return Scaffold(
@@ -661,6 +667,7 @@ class _EditProfileDialog extends StatefulWidget {
     required this.initialName,
     required this.initialEmail,
     required this.initialPhone,
+    required this.showPhone,
     required this.normalizePhone,
     required this.isValidPhone,
     required this.protectPhonePrefix,
@@ -671,6 +678,7 @@ class _EditProfileDialog extends StatefulWidget {
   final String initialName;
   final String initialEmail;
   final String initialPhone;
+  final bool showPhone;
   final String Function(String value) normalizePhone;
   final bool Function(String value) isValidPhone;
   final void Function(TextEditingController controller) protectPhonePrefix;
@@ -709,12 +717,15 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
   }
 
   void _save() {
-    final phoneNumber = widget.normalizePhone(_phoneController.text);
-    if (!widget.isValidPhone(phoneNumber)) {
-      setState(() {
-        _phoneError = widget.langProvider.tr('Enter exactly 10 digits after +92');
-      });
-      return;
+    String phoneNumber = '';
+    if (widget.showPhone) {
+      phoneNumber = widget.normalizePhone(_phoneController.text);
+      if (!widget.isValidPhone(phoneNumber)) {
+        setState(() {
+          _phoneError = widget.langProvider.tr('Enter exactly 10 digits after +92');
+        });
+        return;
+      }
     }
 
     Navigator.pop(context, {
@@ -743,28 +754,30 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
               autofocus: true,
             ),
             const SizedBox(height: 16),
-            TextField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s]')),
-              ],
-              decoration: InputDecoration(
-                labelText: langProvider.tr('Phone Number'),
-                hintText: '+92 300-1234567',
-                helperText: _phoneError == null
-                    ? langProvider.tr('Only edit digits after +92')
-                    : null,
-                errorText: _phoneError,
+            if (widget.showPhone) ...[
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s]')),
+                ],
+                decoration: InputDecoration(
+                  labelText: langProvider.tr('Phone Number'),
+                  hintText: '+92 300-1234567',
+                  helperText: _phoneError == null
+                      ? langProvider.tr('Only edit digits after +92')
+                      : null,
+                  errorText: _phoneError,
+                ),
+                onTap: () => widget.movePhoneCursorAfterPrefix(_phoneController),
+                onChanged: (_) {
+                  if (_phoneError != null) {
+                    setState(() => _phoneError = null);
+                  }
+                },
               ),
-              onTap: () => widget.movePhoneCursorAfterPrefix(_phoneController),
-              onChanged: (_) {
-                if (_phoneError != null) {
-                  setState(() => _phoneError = null);
-                }
-              },
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
+            ],
             TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
