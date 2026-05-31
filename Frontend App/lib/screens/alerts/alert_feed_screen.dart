@@ -99,7 +99,10 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
                   }
 
                   return SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMedium),
+                    padding: const EdgeInsets.only(
+                      horizontal: AppTheme.spacingMedium,
+                      top: AppTheme.spacingMedium,
+                    ),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
