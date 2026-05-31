@@ -743,7 +743,13 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
     int index,
   ) {
     return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, route),
+      onTap: () async {
+        await Navigator.pushNamed(context, route);
+        if (!mounted) return;
+        if (route == '/alert_management' || route == '/alert_feed') {
+          await _refreshDashboardData();
+        }
+      },
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
