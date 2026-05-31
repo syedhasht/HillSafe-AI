@@ -612,10 +612,8 @@ class _CommunityDashboardState extends State<CommunityDashboard>
         latitude: position.latitude,
         longitude: position.longitude,
       );
-      final riskLevel =
-          riskData?['risk_level']?.toString() ?? _riskLevelFromRegion(nearest);
-      final riskScore = (riskData?['risk_score'] as num?)?.toDouble() ??
-          (nearest?['current_risk_score'] as num?)?.toDouble();
+      final riskLevel = riskData?['risk_level']?.toString();
+      final riskScore = (riskData?['risk_score'] as num?)?.toDouble();
 
       final response = await _apiService.submitSOS(
         latitude: position.latitude,
@@ -830,14 +828,6 @@ class _CommunityDashboardState extends State<CommunityDashboard>
     final minutes = totalSeconds ~/ 60;
     final seconds = totalSeconds % 60;
     return 'SOS $minutes:${seconds.toString().padLeft(2, '0')} بعد';
-  }
-
-  String _riskLevelFromRegion(Map<String, dynamic>? region) {
-    final score = (region?['current_risk_score'] as num?)?.toDouble() ?? 0.0;
-    if (score >= 0.7) return 'CRITICAL';
-    if (score >= 0.5) return 'HIGH';
-    if (score >= 0.3) return 'MEDIUM';
-    return 'LOW';
   }
 
   Widget _buildRegionsSliver(BuildContext context) {

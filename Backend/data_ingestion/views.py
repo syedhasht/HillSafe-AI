@@ -67,8 +67,7 @@ class TriggerIngestionView(APIView):
             rainfall_mm = prediction['weather']['rainfall_mm']
             temperature = prediction['weather']['temperature']
             region.current_risk_score = prediction['risk_score']
-            
-            region.save()
+            region.save(update_fields=['current_risk_score', 'updated_at', 'last_updated'])
             updated_count += 1
             alert_created = False
             

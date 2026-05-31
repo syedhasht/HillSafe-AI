@@ -90,7 +90,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
 
   void _loadDashboardData() {
     _safetyStatusFuture = _apiService.fetchSafetyStatus();
-    _regionsFuture = _apiService.fetchRegionsCached();
+    _regionsFuture = _apiService.fetchRegions();
     _alertsFuture = _apiService.fetchAlerts();
     _sosRequestsFuture = _apiService.fetchSOSRequests();
     _quickStatsFuture = Future.wait<dynamic>([

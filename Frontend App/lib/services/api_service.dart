@@ -566,20 +566,18 @@ class ApiService {
   ///
   /// Returns list of region maps or empty list on error
   Future<List<Map<String, dynamic>>> fetchRegions() async {
-    return _fetchRegions(refresh: true);
+    return _fetchRegions();
   }
 
-  /// Fetch cached regions without triggering backend ML refresh.
-  ///
-  /// Use this for dashboards where fast display matters more than forcing a
-  /// live region-risk refresh on every screen open.
+  /// Compatibility wrapper for older screens. It intentionally uses the same
+  /// live endpoint as fetchRegions so stale region values are never requested.
   Future<List<Map<String, dynamic>>> fetchRegionsCached() async {
-    return _fetchRegions(refresh: false);
+    return fetchRegions();
   }
 
-  Future<List<Map<String, dynamic>>> _fetchRegions({required bool refresh}) async {
+  Future<List<Map<String, dynamic>>> _fetchRegions() async {
     try {
-      final response = await _getRegionsResponse(refresh: refresh);
+      final response = await _getRegionsResponse();
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -591,32 +589,15 @@ class ApiService {
       }
     } catch (e) {
       print('Fetch regions exception: $e');
-
-      try {
-        final fallbackResponse = await _getRegionsResponse(refresh: false);
-        if (fallbackResponse.statusCode == 200) {
-          final List<dynamic> data = jsonDecode(fallbackResponse.body);
-          return data.cast<Map<String, dynamic>>();
-        }
-        print(
-            'Fetch regions fallback error: ${fallbackResponse.statusCode} - ${fallbackResponse.body}');
-      } catch (fallbackError) {
-        print('Fetch regions fallback exception: $fallbackError');
-      }
-
       throw Exception('Unable to load monitored regions. Please try again.');
     }
   }
 
-  Future<http.Response> _getRegionsResponse({required bool refresh}) {
-    final uri = refresh
-        ? Uri.parse('$baseUrl/regions/')
-        : Uri.parse('$baseUrl/regions/?refresh=false');
-
+  Future<http.Response> _getRegionsResponse() {
     return _client.get(
-      uri,
+      Uri.parse('$baseUrl/regions/'),
       headers: {'Content-Type': 'application/json'},
-    ).timeout(Duration(seconds: refresh ? 60 : 30));
+    ).timeout(const Duration(seconds: 60));
   }
 
   /// Predict Risk Function

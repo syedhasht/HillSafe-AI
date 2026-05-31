@@ -15,6 +15,7 @@ from .serializers import IncidentReportSerializer, SafetyStatusSerializer
 from regions.models import Region
 
 SOS_COOLDOWN = timedelta(minutes=5)
+SOS_ACTIVE_WINDOW = timedelta(hours=12)
 
 
 class SubmitReportView(APIView):
@@ -450,7 +451,14 @@ class SOSListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        requests = SOSRequest.objects.select_related('user', 'region').order_by('-timestamp')[:25]
+        active_since = timezone.now() - SOS_ACTIVE_WINDOW
+        requests = (
+            SOSRequest.objects
+            .select_related('user', 'region')
+            .exclude(status='RESOLVED')
+            .filter(timestamp__gte=active_since)
+            .order_by('-timestamp')[:25]
+        )
         return Response([_serialize_sos(sos) for sos in requests], status=status.HTTP_200_OK)
 
 

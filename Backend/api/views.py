@@ -337,11 +337,12 @@ class RegionListView(generics.ListAPIView):
         return Region.objects.all()
 
 
-def _refresh_stale_region_risks(max_age_minutes=15, max_regions=3):
+def _refresh_stale_region_risks(max_age_minutes=15, max_regions=None):
     cutoff = timezone.now() - timezone.timedelta(minutes=max_age_minutes)
-    stale = list(
-        Region.objects.filter(last_updated__lte=cutoff).order_by('last_updated')[:max_regions]
-    )
+    stale_regions = Region.objects.filter(last_updated__lte=cutoff).order_by('last_updated')
+    if max_regions is not None:
+        stale_regions = stale_regions[:max_regions]
+    stale = list(stale_regions)
     for region in stale:
         try:
             prediction = predict_region_risk(region)
@@ -609,6 +610,9 @@ class AnalyticsView(APIView):
         period = request.query_params.get('period', '7days')
         region_id = request.query_params.get('region_id', None)
         days = 1 if period == '24hours' else 30 if period == '30days' else 7
+        force = request.query_params.get('force', 'false').lower() == 'true'
+
+        _refresh_stale_region_risks(max_age_minutes=0 if force else 15)
 
         regions = Region.objects.all()
         if region_id:
@@ -665,6 +669,7 @@ class SensorDataView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
+        _refresh_stale_region_risks(max_age_minutes=15)
         regions = Region.objects.all()
         if not regions.exists():
             return Response({

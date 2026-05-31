@@ -21,8 +21,9 @@ regions_data = [
 
 print("Starting region seeding...")
 for data in regions_data:
-    obj, created = Region.objects.update_or_create(
+    obj, created = Region.objects.get_or_create(
         name=data["name"],
+        district=data["district"],
         defaults={
             "district": data["district"],
             "latitude": data["lat"],
@@ -33,7 +34,17 @@ for data in regions_data:
             "warning_radius_km": data["warning_radius_km"],
         }
     )
+    if not created:
+        Region.objects.filter(pk=obj.pk).update(
+            district=data["district"],
+            latitude=data["lat"],
+            longitude=data["lng"],
+            is_critical_zone=True,
+            danger_radius_km=data["danger_radius_km"],
+            warning_radius_km=data["warning_radius_km"],
+        )
+        obj.refresh_from_db()
     action = "Created" if created else "Updated"
-    print(f"{action}: {obj.name} ({obj.district}) - Risk: {obj.current_risk_score}")
+    print(f"{action}: {obj.name} ({obj.district}) - Risk preserved at: {obj.current_risk_score}")
 
 print("Seeding complete!")
