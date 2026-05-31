@@ -411,12 +411,12 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final isDarkMode = themeProvider.isDarkMode;
-    final systemUiOverlayStyle = SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
-      statusBarBrightness: isDarkMode ? Brightness.dark : Brightness.light,
-      systemNavigationBarColor: isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF5F4F0),
-      systemNavigationBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
+    const systemUiOverlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Color(0xFF0F172A), // Dark Navy Background
+      statusBarIconBrightness: Brightness.light, // White Text/Icons
+      statusBarBrightness: Brightness.dark,
+      systemNavigationBarColor: Color(0xFF0F172A),
+      systemNavigationBarIconBrightness: Brightness.light,
     );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
