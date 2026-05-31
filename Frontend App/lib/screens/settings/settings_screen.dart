@@ -443,6 +443,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final email = userProvider.email.isEmpty
         ? 'Add email address'
         : userProvider.email;
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
 
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingLarge),
@@ -474,10 +475,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(width: AppTheme.spacingMedium),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  isRtl ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 Text(
                   username,
+                  textAlign: isRtl ? TextAlign.right : TextAlign.left,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -485,56 +488,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      LucideIcons.phone,
-                      size: 13,
-                      color: AppTheme.textSecondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Directionality(
-                        textDirection: TextDirection.ltr,
-                        child: Text(
-                          phoneNumber,
-                          textAlign: TextAlign.left,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textSecondary,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
+                Align(
+                  alignment: isRtl ? Alignment.centerRight : Alignment.centerLeft,
+                  child: _ContactLine(
+                    icon: LucideIcons.phone,
+                    text: phoneNumber,
+                    color: AppTheme.textSecondary,
+                    isRtl: isRtl,
+                  ),
                 ),
                 const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      LucideIcons.mail,
-                      size: 13,
-                      color: AppTheme.textSecondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Directionality(
-                        textDirection: TextDirection.ltr,
-                        child: Text(
-                          email,
-                          textAlign: TextAlign.left,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: userProvider.email.isEmpty
-                                ? AppTheme.accentTeal
-                                : AppTheme.textSecondary,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
+                Align(
+                  alignment: isRtl ? Alignment.centerRight : Alignment.centerLeft,
+                  child: _ContactLine(
+                    icon: LucideIcons.mail,
+                    text: email,
+                    color: userProvider.email.isEmpty
+                        ? AppTheme.accentTeal
+                        : AppTheme.textSecondary,
+                    isRtl: isRtl,
+                  ),
                 ),
               ],
             ),
@@ -659,6 +632,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ContactLine extends StatelessWidget {
+  const _ContactLine({
+    required this.icon,
+    required this.text,
+    required this.color,
+    required this.isRtl,
+  });
+
+  final IconData icon;
+  final String text;
+  final Color color;
+  final bool isRtl;
+
+  @override
+  Widget build(BuildContext context) {
+    final children = [
+      Icon(icon, size: 13, color: AppTheme.textSecondary),
+      const SizedBox(width: 6),
+      Flexible(
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: Text(
+            text,
+            textAlign: isRtl ? TextAlign.right : TextAlign.left,
+            style: TextStyle(fontSize: 12, color: color),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+    ];
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: isRtl ? MainAxisAlignment.end : MainAxisAlignment.start,
+      children: isRtl ? children.reversed.toList() : children,
     );
   }
 }
