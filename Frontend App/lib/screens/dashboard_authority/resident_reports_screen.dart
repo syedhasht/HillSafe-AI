@@ -359,20 +359,7 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                     ],
                   )
                 else
-                  const Row(
-                    children: [
-                      Icon(LucideIcons.alertCircle, size: 14, color: Colors.orange),
-                      SizedBox(width: 4),
-                      Text(
-                        'Pending Verification',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.orange,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
+                  const SizedBox.shrink(),
               ],
             ),
           ],
