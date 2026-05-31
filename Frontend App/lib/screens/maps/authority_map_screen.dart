@@ -397,7 +397,7 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen> {
         TileLayer(
           urlTemplate: _showSatellite 
               ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-              : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.hillsafe.app',
           maxNativeZoom: 19,
         ),

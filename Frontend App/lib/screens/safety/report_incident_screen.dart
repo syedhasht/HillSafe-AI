@@ -516,7 +516,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.hillsafe.app',
                   maxNativeZoom: 19,
                 ),
