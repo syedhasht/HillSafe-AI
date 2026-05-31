@@ -64,7 +64,15 @@ void main() async {
   safetyController.initialize();
 
   // Initialize default dark overlay style for visible status bar icons on light startup background
-  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.white,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: Color(0xFFF5F4F0),
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ),
+  );
 
   runApp(
     MultiProvider(

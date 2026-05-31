@@ -117,12 +117,14 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
     final brightness = Theme.of(context).brightness;
     final overlayStyle = brightness == Brightness.dark
         ? SystemUiOverlayStyle.light.copyWith(
-            statusBarColor: Colors.transparent,
+            statusBarColor: const Color(0xFF0D0F14),
+            statusBarBrightness: Brightness.dark,
             systemNavigationBarColor: const Color(0xFF0D0F14),
             systemNavigationBarIconBrightness: Brightness.light,
           )
         : SystemUiOverlayStyle.dark.copyWith(
-            statusBarColor: Colors.transparent,
+            statusBarColor: Colors.white,
+            statusBarBrightness: Brightness.light,
             systemNavigationBarColor: const Color(0xFFF5F4F0),
             systemNavigationBarIconBrightness: Brightness.dark,
           );
