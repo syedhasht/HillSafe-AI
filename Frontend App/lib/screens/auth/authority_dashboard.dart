@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
@@ -749,6 +748,126 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
         }
       },
       child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _surface(),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _border()),
+          boxShadow: [
+            BoxShadow(color: color.withOpacity(0.12), blurRadius: 20, offset: const Offset(0, 6)),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withOpacity(0.25)),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(height: 12),
+            Text(title,
+              style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w700,
+                color: _textPri(), letterSpacing: -0.2, height: 1.2,
+              ),
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 3),
+            Text(subtitle,
+              style: TextStyle(fontSize: 11, color: _textSec()),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      )
+          .animate()
+          .fadeIn(duration: 500.ms, delay: (80 * index).ms)
+          .scale(begin: const Offset(0.88, 0.88), end: const Offset(1, 1)),
+    );
+  }
+
+  // ── UTILITIES ─────────────────────────────────────────────────────────────
+  String _formatTimeAgo(dynamic timestamp) {
+    final d = DateHelper.getDifferenceFromNow(timestamp);
+    if (d.inDays    > 0) return '${d.inDays}d ago';
+    if (d.inHours   > 0) return '${d.inHours}h ago';
+    if (d.inMinutes > 0) return '${d.inMinutes}m ago';
+    return 'Just now';
+  }
+
+  // ── DIALOGS ───────────────────────────────────────────────────────────────
+  void _showSafetyCheckinDetail(Map<String, dynamic> checkin) {
+    final lat       = (checkin['latitude']  as num?)?.toDouble();
+    final lon       = (checkin['longitude'] as num?)?.toDouble();
+    final timeLabel = DateHelper.format(checkin['last_marked_at'], pattern: 'MMM d, yyyy • h:mm a');
+    final name     = checkin['user_name']?.toString() ?? 'Resident';
+    final region   = checkin['region_name']?.toString() ?? 'Unknown region';
+    final district = checkin['district']?.toString();
+    final area     = checkin['area_name']?.toString();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 18, 16, 22),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF065F46), Color(0xFF16A34A), Color(0xFF22C55E)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 54, height: 54,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.16),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.45)),
+                    ),
+                    child: const Icon(LucideIcons.shieldCheck, color: Colors.white, size: 30),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Safety Check-in',
+                        style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, height: 1.1)),
+                      const SizedBox(height: 5),
+                      Text(timeLabel,
+                        style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 13, fontWeight: FontWeight.w500)),
+                    ],
+                  )),
+                  IconButton(tooltip: 'Close', onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(LucideIcons.x, color: Colors.white)),
+                ]),
+              ),
+              Flexible(child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _detailTile(icon: LucideIcons.user,   label: 'Resident', value: name,    accentColor: const Color(0xFF16A34A)),
+                    _detailTile(
+                      icon: LucideIcons.mapPin, label: 'Region',
+                      value: (district == null || district.isEmpty) ? region : '$region, $district',
+                      accentColor: const Color(0xFF16A34A),
+                    ),
                     if (area != null && area.isNotEmpty)
                       _detailTile(icon: LucideIcons.navigation, label: 'Area', value: area, accentColor: const Color(0xFF16A34A)),
                     if (lat != null && lon != null)
@@ -780,7 +899,10 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
     final name        = request['name']?.toString() ?? 'Unknown resident';
     final location    = request['region_name']?.toString() ?? request['area_name']?.toString() ?? 'Unknown location';
     final statusLabel = request['status_label']?.toString() ?? 'Needs Help';
-    final timestamp   = request['timestamp']?.toString() ?? 'Unknown time';
+    final timestampVal = request['timestamp'];
+    final timeLabel   = timestampVal == null
+        ? 'Unknown time'
+        : DateHelper.format(timestampVal, pattern: 'MMM d, yyyy • h:mm a');
     final areaName    = request['area_name']?.toString();
 
     showDialog(
