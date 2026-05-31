@@ -40,6 +40,22 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
+    // Explicitly create the high-priority "risk_alerts" notification channel on Android
+    final androidPlugin = _notifications
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      const AndroidNotificationChannel channel = AndroidNotificationChannel(
+        'risk_alerts', // id matches backend notification_channel_id
+        'Risk Alerts', // name
+        description: 'Critical landslide risk alerts', // description
+        importance: Importance.max, // Max importance forces heads-up / status-bar notifications
+        playSound: true,
+        enableVibration: true,
+      );
+      await androidPlugin.createNotificationChannel(channel);
+      print('Android Notification Channel "risk_alerts" created with max importance');
+    }
+
     _isInitialized = true;
     print('NotificationService initialized');
   }
@@ -82,8 +98,8 @@ class NotificationService {
       'risk_alerts',
       'Risk Alerts',
       channelDescription: 'Critical landslide risk alerts',
-      importance: Importance.high,
-      priority: Priority.high,
+      importance: Importance.max,
+      priority: Priority.max,
       showWhen: true,
       enableVibration: true,
       playSound: true,
@@ -123,8 +139,8 @@ class NotificationService {
       'risk_alerts',
       'Risk Alerts',
       channelDescription: 'Critical landslide risk alerts',
-      importance: Importance.high,
-      priority: Priority.high,
+      importance: Importance.max,
+      priority: Priority.max,
       showWhen: true,
       enableVibration: true,
       playSound: true,
