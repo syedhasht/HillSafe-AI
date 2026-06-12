@@ -12,6 +12,7 @@ import 'package:frontend_app/screens/community/community_dashboard.dart';
 import 'package:frontend_app/screens/role_selection_screen.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/theme/theme_provider.dart';
+import 'package:frontend_app/theme/motion.dart';
 import 'package:frontend_app/providers/language_provider.dart';
 import 'package:frontend_app/providers/user_provider.dart';
 import 'package:frontend_app/providers/safety_controller.dart';
@@ -77,7 +78,8 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ThemeProvider(initialIsDark: isDarkMode)),
+        ChangeNotifierProvider(
+            create: (_) => ThemeProvider(initialIsDark: isDarkMode)),
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider.value(value: safetyController),
@@ -106,6 +108,7 @@ class HillSafeApp extends StatelessWidget {
           themeMode: themeProvider.themeMode,
           themeAnimationDuration: Duration.zero,
           themeAnimationCurve: Curves.linear,
+          scrollBehavior: const HillSafeScrollBehavior(),
           home: const SplashScreen(),
           builder: (context, child) {
             final mediaQuery = MediaQuery.of(context);
@@ -120,8 +123,12 @@ class HillSafeApp extends StatelessWidget {
                 statusBarColor: const Color(0xFF0F172A),
                 statusBarIconBrightness: Brightness.light,
                 statusBarBrightness: Brightness.dark,
-                systemNavigationBarColor: themeProvider.isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF5F4F0),
-                systemNavigationBarIconBrightness: themeProvider.isDarkMode ? Brightness.light : Brightness.dark,
+                systemNavigationBarColor: themeProvider.isDarkMode
+                    ? const Color(0xFF0F172A)
+                    : const Color(0xFFF5F4F0),
+                systemNavigationBarIconBrightness: themeProvider.isDarkMode
+                    ? Brightness.light
+                    : Brightness.dark,
               ),
             );
 

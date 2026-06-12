@@ -14,7 +14,7 @@ import 'package:frontend_app/constants/risk_constants.dart';
 /// Risk Map Screen - Visualizes regions with color-coded risk levels
 class RiskMapScreen extends StatefulWidget {
   final Map<String, dynamic>? selectedRegion;
-  
+
   const RiskMapScreen({
     super.key,
     this.selectedRegion,
@@ -27,8 +27,9 @@ class RiskMapScreen extends StatefulWidget {
 class _RiskMapScreenState extends State<RiskMapScreen> {
   final ApiService _apiService = ApiService();
   final MapController _mapController = MapController();
-  
+
   List<Map<String, dynamic>> _regions = [];
+  List<Map<String, dynamic>> _reportZones = [];
   bool _isLoading = true;
   bool _isLoadingMap = true;
   bool _isLoadingLocation = false;
@@ -48,14 +49,15 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
 
   Future<void> _getCurrentLocation() async {
     if (_isLoadingLocation) return; // Prevent duplicate calls
-    
+
     setState(() => _isLoadingLocation = true);
-    
+
     try {
       debugPrint('Attempting to get current location...');
       final position = await _apiService.getCurrentPosition();
       if (position != null && mounted) {
-        debugPrint('✓ Location obtained: ${position.latitude}, ${position.longitude}');
+        debugPrint(
+            '✓ Location obtained: ${position.latitude}, ${position.longitude}');
         setState(() {
           _userPosition = LatLng(position.latitude, position.longitude);
           _cachedUserPosition = _userPosition; // Cache for instant access
@@ -91,17 +93,23 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
 
     try {
       debugPrint('Loading regions...');
-      final regions = await _apiService.fetchRegions();
-      
+      final results = await Future.wait([
+        _apiService.fetchRegions(),
+        _apiService.fetchActiveReportZones(),
+      ]);
+      final regions = results[0];
+      final reportZones = results[1];
+
       if (mounted) {
         setState(() {
           _regions = regions;
+          _reportZones = reportZones;
           _isLoading = false;
           _isLoadingMap = false;
         });
-        
+
         debugPrint('✓ Regions loaded: ${regions.length}');
-        
+
         if (_regions.isNotEmpty) {
           _scheduleCameraFit();
         }
@@ -146,10 +154,16 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
     if (_selectedFilter == 'All') return _regions;
     return _regions.where((region) {
       final riskScore = _regionRiskScore(region);
-      if (_selectedFilter == 'Critical') return riskScore >= RiskConstants.criticalThreshold;
-      if (_selectedFilter == 'High Risk') return riskScore >= RiskConstants.highThreshold && riskScore < RiskConstants.criticalThreshold;
-      if (_selectedFilter == 'Medium Risk') return riskScore >= RiskConstants.mediumThreshold && riskScore < RiskConstants.highThreshold;
-      if (_selectedFilter == 'Low Risk') return riskScore < RiskConstants.mediumThreshold;
+      if (_selectedFilter == 'Critical')
+        return riskScore >= RiskConstants.criticalThreshold;
+      if (_selectedFilter == 'High Risk')
+        return riskScore >= RiskConstants.highThreshold &&
+            riskScore < RiskConstants.criticalThreshold;
+      if (_selectedFilter == 'Medium Risk')
+        return riskScore >= RiskConstants.mediumThreshold &&
+            riskScore < RiskConstants.highThreshold;
+      if (_selectedFilter == 'Low Risk')
+        return riskScore < RiskConstants.mediumThreshold;
       return true;
     }).toList();
   }
@@ -190,7 +204,10 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
       // causing flutter_map's fitCamera to divide-by-zero and produce NaN.
       final latSpan = bounds.north - bounds.south;
       final lngSpan = bounds.east - bounds.west;
-      if (latSpan < 0.001 || lngSpan < 0.001 || !latSpan.isFinite || !lngSpan.isFinite) {
+      if (latSpan < 0.001 ||
+          lngSpan < 0.001 ||
+          !latSpan.isFinite ||
+          !lngSpan.isFinite) {
         _mapController.move(points.first, 7.0);
         return;
       }
@@ -242,6 +259,36 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
     }
   }
 
+  Color _reportZoneColor(Map<String, dynamic> report) {
+    switch (report['hazard_level']?.toString().toUpperCase()) {
+      case 'CRITICAL':
+        return const Color(0xFF7F1D1D);
+      case 'HIGH':
+        return Colors.red;
+      case 'MEDIUM':
+        return Colors.orange;
+      default:
+        return Colors.green;
+    }
+  }
+
+  void _showReportZoneDetails(Map<String, dynamic> report) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${report['hazard_level']} Resident-Reported Hazard'),
+        content: Text(
+          '${report['area_name'] ?? report['region_name'] ?? 'Reported location'}\n\n'
+          '${report['description'] ?? ''}\n\nApproved by authorities. Active radius: 20 km.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
   String _getRiskLabel(double riskScore) {
     if (riskScore >= RiskConstants.criticalThreshold) return 'Critical Risk';
     if (riskScore >= RiskConstants.highThreshold) return 'High Risk';
@@ -283,7 +330,7 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
     final riskScore = _regionRiskScore(region);
     final color = _getRiskColor(riskScore);
     final explanation = _riskExplanation(region, riskScore);
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -296,7 +343,8 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
             Expanded(
               child: Text(
                 region['name'] ?? 'Unknown Region',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -345,10 +393,10 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
               child: Row(
                 children: [
                   Icon(
-                    riskScore >= RiskConstants.criticalThreshold 
-                        ? LucideIcons.alertOctagon 
-                        : riskScore >= RiskConstants.mediumThreshold 
-                            ? LucideIcons.alertTriangle 
+                    riskScore >= RiskConstants.criticalThreshold
+                        ? LucideIcons.alertOctagon
+                        : riskScore >= RiskConstants.mediumThreshold
+                            ? LucideIcons.alertTriangle
                             : LucideIcons.checkCircle,
                     color: color,
                     size: 20,
@@ -356,11 +404,11 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      riskScore >= RiskConstants.criticalThreshold 
+                      riskScore >= RiskConstants.criticalThreshold
                           ? 'Critical landslide risk - Evacuate if advised'
-                          : riskScore >= RiskConstants.highThreshold 
+                          : riskScore >= RiskConstants.highThreshold
                               ? 'High risk - Exercise extreme caution'
-                              : riskScore >= RiskConstants.mediumThreshold 
+                              : riskScore >= RiskConstants.mediumThreshold
                                   ? 'Medium risk - Stay informed'
                                   : 'Low risk - Safe conditions verified',
                       style: TextStyle(
@@ -422,62 +470,48 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: systemUiOverlayStyle,
       child: Scaffold(
-      // Light scaffold background
-      backgroundColor: AppTheme.background,
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'recenter_risk_map',
-        onPressed: () async {
-          // Show loading indicator
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(context.read<LanguageProvider>().tr('Getting your location...')),
-                ],
-              ),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-
-          if (_userPosition != null) {
-            // User position already available, just center on it
-            _mapController.move(_userPosition!, 15.0);
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        // Light scaffold background
+        backgroundColor: AppTheme.background,
+        floatingActionButton: FloatingActionButton(
+          heroTag: 'recenter_risk_map',
+          onPressed: () async {
+            // Show loading indicator
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Row(
                   children: [
-                    const Icon(LucideIcons.checkCircle, color: Colors.white, size: 20),
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    Text(context.read<LanguageProvider>().tr('Centered on your location')),
+                    Text(context
+                        .read<LanguageProvider>()
+                        .tr('Getting your location...')),
                   ],
                 ),
-                duration: const Duration(seconds: 1),
-                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
               ),
             );
-          } else {
-            // Try to get user position
-            await _getCurrentLocation();
+
             if (_userPosition != null) {
+              // User position already available, just center on it
               _mapController.move(_userPosition!, 15.0);
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Row(
                     children: [
-                      const Icon(LucideIcons.checkCircle, color: Colors.white, size: 20),
+                      const Icon(LucideIcons.checkCircle,
+                          color: Colors.white, size: 20),
                       const SizedBox(width: 12),
-                      Text(context.read<LanguageProvider>().tr('Centered on your location')),
+                      Text(context
+                          .read<LanguageProvider>()
+                          .tr('Centered on your location')),
                     ],
                   ),
                   duration: const Duration(seconds: 1),
@@ -485,324 +519,460 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
                 ),
               );
             } else {
-              // Location not available, show error and fit to regions
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      const Icon(LucideIcons.alertCircle, color: Colors.white, size: 20),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(context.read<LanguageProvider>().tr('Location unavailable. Please enable GPS.')),
-                      ),
-                    ],
-                  ),
-                  duration: const Duration(seconds: 3),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-              _fitCameraToBounds();
-            }
-          }
-        },
-        // FAB uses accentTeal
-        backgroundColor: AppTheme.accentTeal,
-        elevation: 4,
-        child: const Icon(LucideIcons.navigation, color: Colors.white, size: 24),
-      ).animate().scale(begin: const Offset(0, 0), delay: 600.ms),
-      appBar: AppBar(
-        // White AppBar with dark text/icons
-        backgroundColor: AppTheme.surface,
-        foregroundColor: AppTheme.textPrimary,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        title: Text(
-          widget.selectedRegion == null
-              ? context.watch<LanguageProvider>().tr('Interactive Risk Map')
-              : widget.selectedRegion!['name']?.toString() ??
-                  context.watch<LanguageProvider>().tr('Risk Map'),
-          style: TextStyle(color: AppTheme.textPrimary),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(LucideIcons.refreshCw, color: AppTheme.accentTeal),
-            onPressed: () {
-              _loadRegions();
-              _getCurrentLocation();
-            },
-            tooltip: context.read<LanguageProvider>().tr('Refresh All Data'),
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(
-                    color: AppTheme.accentTeal,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(context.watch<LanguageProvider>().tr('Fetching live risk map...')),
-                ],
-              ),
-            )
-          : Stack(
-              children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: _initialMapCenter,
-                    initialZoom: _initialMapZoom,
-                    minZoom: 4.0,
-                    maxZoom: 16.0,
-                    onMapReady: _scheduleCameraFit,
-                    // Disables fling/inertia animation — the root cause of the
-                    // LatLng(NaN, NaN) crash on Android. The physics deceleration
-                    // divides by a near-zero timestep producing NaN coordinates.
-                    interactionOptions: const InteractionOptions(
-                      flags: InteractiveFlag.all & ~InteractiveFlag.flingAnimation,
-                    ),
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.hillsafe.app',
-                      maxNativeZoom: 19,
-                      errorTileCallback: (tile, error, stackTrace) {
-                        debugPrint('Base map tile failed: $tile - $error');
-                      },
-                    ),
-                    if (_showSatellite)
-                      TileLayer(
-                        urlTemplate:
-                            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.png',
-                        userAgentPackageName: 'com.hillsafe.app',
-                        maxNativeZoom: 18,
-                        tileBuilder: (context, tileWidget, tile) {
-                          return Opacity(
-                            opacity: 0.88,
-                            child: tileWidget,
-                          );
-                        },
-                        errorTileCallback: (tile, error, stackTrace) {
-                          debugPrint('Satellite map tile failed: $tile - $error');
-                        },
-                      ),
-                    
-                    CircleLayer(
-                      circles: _filteredRegions.map((region) {
-                        final point = _regionPoint(region);
-                        if (point == null) return null;
-                        final riskScore = _regionRiskScore(region);
-                        final color = _getRiskColor(riskScore);
-                        final radius = RiskConstants.getCircleRadius(riskScore);
-                        
-                        return CircleMarker(
-                          point: point,
-                          radius: widget.selectedRegion == null ? 30.0 : 60.0, 
-                          useRadiusInMeter: false,
-                          color: color.withOpacity(widget.selectedRegion == null ? 0.2 : 0.14),
-                          borderColor: color.withOpacity(0.75),
-                          borderStrokeWidth: widget.selectedRegion == null ? 2 : 1.5,
-                        );
-                      }).whereType<CircleMarker>().toList(),
-                    ),
-                    
-                    MarkerLayer(
-                      markers: [
-                        // User Position Marker
-                        if (_userPosition != null)
-                          Marker(
-                            point: _userPosition!,
-                            width: 80,
-                            height: 80,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                // Pulsing outer circle — using accentTeal for user location
-                                Container(
-                                  width: 60,
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.accentTeal.withOpacity(0.2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ).animate(
-                                  onPlay: (controller) => controller.repeat(),
-                                ).scale(
-                                  begin: const Offset(0.8, 0.8),
-                                  end: const Offset(1.2, 1.2),
-                                  duration: 1500.ms,
-                                ).fadeOut(duration: 1500.ms),
-                                // Inner solid circle
-                                Container(
-                                  width: 20,
-                                  height: 20,
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.accentTeal,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 3),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Colors.black26,
-                                        blurRadius: 8,
-                                        offset: Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        // Region Markers
-                        ..._filteredRegions.map((region) {
-                        final point = _regionPoint(region);
-                        if (point == null) return null;
-                        final riskScore = _regionRiskScore(region);
-                        final color = _getRiskColor(riskScore);
-                        
-                        return Marker(
-                          point: point,
-                          width: 140,
-                          height: 60,
-                          child: GestureDetector(
-                            onTap: () => _showRegionDetails(region),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: const [
-                                      BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
-                                    ],
-                                    border: Border.all(color: color.withOpacity(0.5)),
-                                  ),
-                                    child: Text(
-                                    region['name'] ?? 'Region',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 10,
-                                      color: color,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                Icon(LucideIcons.mapPin, color: color, size: 24),
-                              ],
-                            ),
-                          ),
-                        );
-                      }).whereType<Marker>().toList(),
-                    ],
-                  ),
-                ],
-              ),
-                
-                if (widget.selectedRegion == null)
-                  Positioned(
-                    top: 16,
-                    left: 0,
-                    right: 0,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: ['All', 'Critical', 'High Risk', 'Medium Risk', 'Low Risk'].map((filter) {
-                          final isSelected = _selectedFilter == filter;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(context.watch<LanguageProvider>().tr(filter)),
-                              selected: isSelected,
-                              onSelected: (val) {
-                                if (val) setState(() => _selectedFilter = filter);
-                              },
-                              // Selected chip uses accentTeal
-                              selectedColor: AppTheme.accentTeal,
-                              backgroundColor: AppTheme.surface,
-                              labelStyle: TextStyle(
-                                color: isSelected ? Colors.white : AppTheme.textPrimary,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-
-                // Legend
-                Positioned(
-                  bottom: 24,
-                  left: 16,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surface,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: AppTheme.cardShadow,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
+              // Try to get user position
+              await _getCurrentLocation();
+              if (_userPosition != null) {
+                _mapController.move(_userPosition!, 15.0);
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
                       children: [
-                        const Text(
-                          'Legend',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildLegendItem(Colors.green, 'Low (< 30%)'),
-                        _buildLegendItem(Colors.orange, 'Moderate (30-70%)'),
-                        _buildLegendItem(Colors.red, 'High (> 70%)'),
+                        const Icon(LucideIcons.checkCircle,
+                            color: Colors.white, size: 20),
+                        const SizedBox(width: 12),
+                        Text(context
+                            .read<LanguageProvider>()
+                            .tr('Centered on your location')),
                       ],
                     ),
-                  ).animate().fadeIn(duration: 400.ms),
+                    duration: const Duration(seconds: 1),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } else {
+                // Location not available, show error and fit to regions
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(LucideIcons.alertCircle,
+                            color: Colors.white, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(context
+                              .read<LanguageProvider>()
+                              .tr('Location unavailable. Please enable GPS.')),
+                        ),
+                      ],
+                    ),
+                    duration: const Duration(seconds: 3),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                _fitCameraToBounds();
+              }
+            }
+          },
+          // FAB uses accentTeal
+          backgroundColor: AppTheme.accentTeal,
+          elevation: 4,
+          child:
+              const Icon(LucideIcons.navigation, color: Colors.white, size: 24),
+        ).animate().scale(begin: const Offset(0, 0), delay: 600.ms),
+        appBar: AppBar(
+          // White AppBar with dark text/icons
+          backgroundColor: AppTheme.surface,
+          foregroundColor: AppTheme.textPrimary,
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          title: Text(
+            widget.selectedRegion == null
+                ? context.watch<LanguageProvider>().tr('Interactive Risk Map')
+                : widget.selectedRegion!['name']?.toString() ??
+                    context.watch<LanguageProvider>().tr('Risk Map'),
+            style: TextStyle(color: AppTheme.textPrimary),
+          ),
+          actions: [
+            IconButton(
+              icon:
+                  const Icon(LucideIcons.refreshCw, color: AppTheme.accentTeal),
+              onPressed: () {
+                _loadRegions();
+                _getCurrentLocation();
+              },
+              tooltip: context.read<LanguageProvider>().tr('Refresh All Data'),
+            ),
+          ],
+        ),
+        body: _isLoading
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(
+                      color: AppTheme.accentTeal,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(context
+                        .watch<LanguageProvider>()
+                        .tr('Fetching live risk map...')),
+                  ],
                 ),
-                Positioned(
-                  top: widget.selectedRegion == null ? 76 : 16,
-                  right: 16,
-                  child: GestureDetector(
-                    onTap: () => setState(() => _showSatellite = !_showSatellite),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: _showSatellite ? AppTheme.primaryDark : AppTheme.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.borderColor.withOpacity(0.4), width: 1),
-                        boxShadow: AppTheme.cardShadow,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _showSatellite ? LucideIcons.map : LucideIcons.globe,
-                            color: _showSatellite ? Colors.white : AppTheme.accentTeal,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 7),
-                          Text(
-                            _showSatellite ? 'Map View' : 'Satellite',
-                            style: TextStyle(
-                              color: _showSatellite ? Colors.white : AppTheme.textPrimary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+              )
+            : Stack(
+                children: [
+                  FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: _initialMapCenter,
+                      initialZoom: _initialMapZoom,
+                      minZoom: 4.0,
+                      maxZoom: 16.0,
+                      onMapReady: _scheduleCameraFit,
+                      // Disables fling/inertia animation — the root cause of the
+                      // LatLng(NaN, NaN) crash on Android. The physics deceleration
+                      // divides by a near-zero timestep producing NaN coordinates.
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.all &
+                            ~InteractiveFlag.flingAnimation,
                       ),
                     ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.hillsafe.app',
+                        maxNativeZoom: 19,
+                        errorTileCallback: (tile, error, stackTrace) {
+                          debugPrint('Base map tile failed: $tile - $error');
+                        },
+                      ),
+                      if (_showSatellite)
+                        TileLayer(
+                          urlTemplate:
+                              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.png',
+                          userAgentPackageName: 'com.hillsafe.app',
+                          maxNativeZoom: 18,
+                          tileBuilder: (context, tileWidget, tile) {
+                            return Opacity(
+                              opacity: 0.88,
+                              child: tileWidget,
+                            );
+                          },
+                          errorTileCallback: (tile, error, stackTrace) {
+                            debugPrint(
+                                'Satellite map tile failed: $tile - $error');
+                          },
+                        ),
+                      CircleLayer(
+                        circles: _filteredRegions
+                            .map((region) {
+                              final point = _regionPoint(region);
+                              if (point == null) return null;
+                              final riskScore = _regionRiskScore(region);
+                              final color = _getRiskColor(riskScore);
+
+                              return CircleMarker(
+                                point: point,
+                                radius: RiskConstants.hazardZoneRadiusMeters,
+                                useRadiusInMeter: true,
+                                color: color.withOpacity(
+                                    widget.selectedRegion == null
+                                        ? 0.08
+                                        : 0.12),
+                                borderColor: color.withOpacity(0.75),
+                                borderStrokeWidth: 2,
+                              );
+                            })
+                            .whereType<CircleMarker>()
+                            .toList(),
+                      ),
+                      if (_reportZones.isNotEmpty)
+                        CircleLayer(
+                          circles: _reportZones
+                              .map((report) {
+                                final point = _regionPoint(report);
+                                if (point == null) return null;
+                                final color = _reportZoneColor(report);
+                                return CircleMarker(
+                                  point: point,
+                                  radius: RiskConstants.hazardZoneRadiusMeters,
+                                  useRadiusInMeter: true,
+                                  color: color.withOpacity(0.14),
+                                  borderColor: color,
+                                  borderStrokeWidth: 3,
+                                );
+                              })
+                              .whereType<CircleMarker>()
+                              .toList(),
+                        ),
+                      MarkerLayer(
+                        markers: [
+                          // User Position Marker
+                          if (_userPosition != null)
+                            Marker(
+                              point: _userPosition!,
+                              width: 80,
+                              height: 80,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  // Pulsing outer circle — using accentTeal for user location
+                                  Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(
+                                      color:
+                                          AppTheme.accentTeal.withOpacity(0.2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  )
+                                      .animate(
+                                        onPlay: (controller) =>
+                                            controller.repeat(),
+                                      )
+                                      .scale(
+                                        begin: const Offset(0.8, 0.8),
+                                        end: const Offset(1.2, 1.2),
+                                        duration: 1500.ms,
+                                      )
+                                      .fadeOut(duration: 1500.ms),
+                                  // Inner solid circle
+                                  Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.accentTeal,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: Colors.white, width: 3),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Colors.black26,
+                                          blurRadius: 8,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          // Region Markers
+                          ..._filteredRegions
+                              .map((region) {
+                                final point = _regionPoint(region);
+                                if (point == null) return null;
+                                final riskScore = _regionRiskScore(region);
+                                final color = _getRiskColor(riskScore);
+
+                                return Marker(
+                                  point: point,
+                                  width: 140,
+                                  height: 60,
+                                  child: GestureDetector(
+                                    onTap: () => _showRegionDetails(region),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            boxShadow: const [
+                                              BoxShadow(
+                                                  color: Colors.black12,
+                                                  blurRadius: 4,
+                                                  offset: Offset(0, 2)),
+                                            ],
+                                            border: Border.all(
+                                                color: color.withOpacity(0.5)),
+                                          ),
+                                          child: Text(
+                                            region['name'] ?? 'Region',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 10,
+                                              color: color,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Icon(LucideIcons.mapPin,
+                                            color: color, size: 24),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              })
+                              .whereType<Marker>()
+                              .toList(),
+                          ..._reportZones
+                              .map((report) {
+                                final point = _regionPoint(report);
+                                if (point == null) return null;
+                                final color = _reportZoneColor(report);
+                                return Marker(
+                                  point: point,
+                                  width: 145,
+                                  height: 58,
+                                  child: GestureDetector(
+                                    onTap: () => _showReportZoneDetails(report),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 7, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            border: Border.all(color: color),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            '${report['hazard_level']} Report',
+                                            style: TextStyle(
+                                                color: color,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 9),
+                                          ),
+                                        ),
+                                        Icon(LucideIcons.triangleAlert,
+                                            color: color, size: 23),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              })
+                              .whereType<Marker>()
+                              .toList(),
+                        ],
+                      ),
+                    ],
                   ),
-                ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
-              ],
-            ),
-    ),);
+
+                  if (widget.selectedRegion == null)
+                    Positioned(
+                      top: 16,
+                      left: 0,
+                      right: 0,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            'All',
+                            'Critical',
+                            'High Risk',
+                            'Medium Risk',
+                            'Low Risk'
+                          ].map((filter) {
+                            final isSelected = _selectedFilter == filter;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(context
+                                    .watch<LanguageProvider>()
+                                    .tr(filter)),
+                                selected: isSelected,
+                                onSelected: (val) {
+                                  if (val)
+                                    setState(() => _selectedFilter = filter);
+                                },
+                                // Selected chip uses accentTeal
+                                selectedColor: AppTheme.accentTeal,
+                                backgroundColor: AppTheme.surface,
+                                labelStyle: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppTheme.textPrimary,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+
+                  // Legend
+                  Positioned(
+                    bottom: 24,
+                    left: 16,
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: AppTheme.cardShadow,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Legend',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildLegendItem(Colors.green, 'Low (< 30%)'),
+                          _buildLegendItem(Colors.orange, 'Moderate (30-70%)'),
+                          _buildLegendItem(Colors.red, 'High (> 70%)'),
+                        ],
+                      ),
+                    ).animate().fadeIn(duration: 400.ms),
+                  ),
+                  Positioned(
+                    top: widget.selectedRegion == null ? 76 : 16,
+                    right: 16,
+                    child: GestureDetector(
+                      onTap: () =>
+                          setState(() => _showSatellite = !_showSatellite),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _showSatellite
+                              ? AppTheme.primaryDark
+                              : AppTheme.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: AppTheme.borderColor.withOpacity(0.4),
+                              width: 1),
+                          boxShadow: AppTheme.cardShadow,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _showSatellite
+                                  ? LucideIcons.map
+                                  : LucideIcons.globe,
+                              color: _showSatellite
+                                  ? Colors.white
+                                  : AppTheme.accentTeal,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              _showSatellite ? 'Map View' : 'Satellite',
+                              style: TextStyle(
+                                color: _showSatellite
+                                    ? Colors.white
+                                    : AppTheme.textPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+                ],
+              ),
+      ),
+    );
   }
 
   Widget _buildLegendItem(Color color, String label) {
@@ -821,7 +991,8 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
             ),
           ),
           const SizedBox(width: 10),
-          Text(label, style: TextStyle(fontSize: 12, color: AppTheme.textPrimary)),
+          Text(label,
+              style: TextStyle(fontSize: 12, color: AppTheme.textPrimary)),
         ],
       ),
     );

@@ -6,6 +6,7 @@
     <!-- Required for location services -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
     
     <!-- Required for notifications and background refresh -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>

@@ -123,8 +123,13 @@ def send_push_notification(region_name, risk_score):
             cred = firebase_admin.credentials.Certificate(cred_path)
             firebase_admin.initialize_app(cred)
 
-        # Get all registered device tokens
-        tokens = list(DeviceToken.objects.values_list('token', flat=True))
+        # Authority devices monitor alerts in the command center and should not
+        # receive resident-facing push notifications.
+        tokens = list(
+            DeviceToken.objects
+            .exclude(user__role__iexact='AUTHORITY')
+            .values_list('token', flat=True)
+        )
         
         if not tokens:
             print(f"⚠️ No device tokens found. Skipping push notification.")

@@ -154,21 +154,11 @@ class _WeatherRiskWidgetState extends State<WeatherRiskWidget>
 
       final currentLatitude = position.latitude;
       final currentLongitude = position.longitude;
-      final displayWeather = Map<String, dynamic>.from(weather);
-      final liveWeather =
-          await _apiService.fetchLiveWeather(currentLatitude, currentLongitude);
-      final liveTemperature = liveWeather?['temperature'];
-      if (liveTemperature is num && liveTemperature > -30 && liveTemperature < 60) {
-        displayWeather['temperature'] = liveTemperature.toDouble();
-        displayWeather['rainfall_mm'] = liveWeather?['rainfall_mm'] ?? weather['rainfall_mm'];
-        displayWeather['humidity'] = liveWeather?['humidity'] ?? weather['humidity'];
-        displayWeather['source'] = liveWeather?['source'] ?? 'open-meteo';
-      }
 
       if (mounted) {
         setState(() {
           _nearestRegion = nearest;
-          _weatherData = displayWeather;
+          _weatherData = Map<String, dynamic>.from(weather);
           _locationName = locationName ??
               '${currentLatitude.toStringAsFixed(4)}, ${currentLongitude.toStringAsFixed(4)}';
           _safetyMessage = riskData['safety_message'] as String?;
@@ -212,6 +202,13 @@ class _WeatherRiskWidgetState extends State<WeatherRiskWidget>
 
   /// Get weather icon based on rainfall and local daylight phase.
   IconData _getWeatherIcon(double rainfall) {
+    final condition = _weatherData?['condition']?.toString().toLowerCase();
+    if (condition == 'thunderstorm') return LucideIcons.cloudLightning;
+    if (condition == 'rain' || condition == 'drizzle') {
+      return LucideIcons.cloudRain;
+    }
+    if (condition == 'snow') return LucideIcons.snowflake;
+    if (condition == 'clouds') return LucideIcons.cloud;
     if (rainfall > 50) return LucideIcons.cloudRain;
     if (rainfall > 20) return LucideIcons.cloudDrizzle;
     if (rainfall > 0) return LucideIcons.cloud;
@@ -412,6 +409,13 @@ class _WeatherRiskWidgetState extends State<WeatherRiskWidget>
   }
 
   IconData _getBackgroundIcon(double rainfall, double temp) {
+    final condition = _weatherData?['condition']?.toString().toLowerCase();
+    if (condition == 'thunderstorm') return LucideIcons.cloudLightning;
+    if (condition == 'rain' || condition == 'drizzle') {
+      return LucideIcons.cloudRain;
+    }
+    if (condition == 'snow') return LucideIcons.snowflake;
+    if (condition == 'clouds') return LucideIcons.cloud;
     if (_isNight) return LucideIcons.moon;
     if (_daylightPhase == _DaylightPhase.sunrise) return LucideIcons.sunrise;
     if (_daylightPhase == _DaylightPhase.sunset) return LucideIcons.sunset;
@@ -421,6 +425,15 @@ class _WeatherRiskWidgetState extends State<WeatherRiskWidget>
   }
 
   String _getWeatherLabel(double rainfall, double temperature) {
+    final description = _weatherData?['description']?.toString().trim();
+    if (description != null && description.isNotEmpty) {
+      return description
+          .split(' ')
+          .map((word) => word.isEmpty
+              ? word
+              : '${word[0].toUpperCase()}${word.substring(1)}')
+          .join(' ');
+    }
     if (rainfall > 0) {
       return temperature <= 4 ? 'Snow' : 'Rain';
     }

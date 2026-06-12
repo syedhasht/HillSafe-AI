@@ -103,6 +103,10 @@ class TriggerIngestionView(APIView):
                 'terrain_source': prediction['terrain_source'],
                 'alert_created': alert_created
             })
+
+        if updated_count:
+            from data_ingestion.map_updates import send_authority_map_update
+            send_authority_map_update('predictions_refreshed')
         
         return Response(
             {

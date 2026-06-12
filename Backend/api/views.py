@@ -445,13 +445,14 @@ class CreateAlertView(APIView):
         )
 
         fallback_to_all_devices = False
+        eligible_devices = DeviceToken.objects.exclude(user__role__iexact='AUTHORITY')
 
         # Estimate targeted devices count synchronously first (extremely fast database lookup)
         try:
             if send_to_all:
-                targeted_count = DeviceToken.objects.count()
+                targeted_count = eligible_devices.count()
             else:
-                located_devices = DeviceToken.objects.exclude(
+                located_devices = eligible_devices.exclude(
                     latitude__isnull=True,
                 ).exclude(
                     longitude__isnull=True,
@@ -470,7 +471,7 @@ class CreateAlertView(APIView):
                     targeted_count = nearby_tokens_count
                 else:
                     fallback_to_all_devices = True
-                    targeted_count = DeviceToken.objects.count()
+                    targeted_count = eligible_devices.count()
         except Exception:
             targeted_count = 0
 
@@ -505,11 +506,14 @@ class CreateAlertView(APIView):
                     cred = firebase_admin.credentials.Certificate(cred_path)
                     firebase_admin.initialize_app(cred)
 
+                eligible_devices = DeviceToken.objects.exclude(
+                    user__role__iexact='AUTHORITY',
+                )
                 if send_to_all:
-                    tokens = list(DeviceToken.objects.values_list('token', flat=True))
+                    tokens = list(eligible_devices.values_list('token', flat=True))
                 else:
                     nearby_tokens = []
-                    located_devices = DeviceToken.objects.exclude(
+                    located_devices = eligible_devices.exclude(
                         latitude__isnull=True,
                     ).exclude(
                         longitude__isnull=True,
@@ -523,7 +527,9 @@ class CreateAlertView(APIView):
                         )
                         if distance <= self.alert_radius_km:
                             nearby_tokens.append(device.token)
-                    tokens = nearby_tokens or list(DeviceToken.objects.values_list('token', flat=True))
+                    tokens = nearby_tokens or list(
+                        eligible_devices.values_list('token', flat=True)
+                    )
 
                 if tokens:
                     label = {
@@ -726,11 +732,17 @@ class SafetyStatusView(APIView):
     GET /api/safety-status/
     Returns count of users who marked themselves safe, grouped by region.
     """
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         from accounts.models import User
         from reports.models import SafetyStatus
+
+        if getattr(request.user, 'role', '').upper() != 'AUTHORITY':
+            return Response(
+                {'error': 'Authority access required'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         regions = Region.objects.all()
         safety_data = []
@@ -748,6 +760,7 @@ class SafetyStatusView(APIView):
             if latest_checkin:
                 latest_data = {
                     'user_name': latest_checkin.user.username,
+                    'phone_number': latest_checkin.user.phone_number,
                     'area_name': latest_checkin.area_name,
                     'latitude': latest_checkin.latitude,
                     'longitude': latest_checkin.longitude,
@@ -770,6 +783,7 @@ class SafetyStatusView(APIView):
             recent_checkins.append({
                 'id': checkin.id,
                 'user_name': checkin.user.username,
+                'phone_number': checkin.user.phone_number,
                 'region_id': checkin.region.id,
                 'region_name': checkin.region.name,
                 'district': checkin.region.district,

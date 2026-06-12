@@ -78,20 +78,41 @@ def _fetch_openweather_weather(latitude, longitude):
         'lon': longitude,
         'appid': api_key,
         'units': 'metric',
+        'lang': 'en',
     }
 
     response = requests.get(url, params=params, timeout=8)
     response.raise_for_status()
     data = response.json()
-    rain = float(data.get('rain', {}).get('1h') or data.get('rain', {}).get('3h') or 0)
-    snow = float(data.get('snow', {}).get('1h') or data.get('snow', {}).get('3h') or 0)
     main = data.get('main', {})
     sys = data.get('sys', {})
+    conditions = data.get('weather') or []
+    condition = conditions[0] if conditions else {}
+
+    if main.get('temp') is None or main.get('humidity') is None:
+        raise requests.RequestException('OpenWeather response is missing temperature or humidity')
+
+    def hourly_amount(values):
+        if values.get('1h') is not None:
+            return float(values['1h'])
+        if values.get('3h') is not None:
+            return float(values['3h']) / 3.0
+        return 0.0
+
+    rain = hourly_amount(data.get('rain', {}))
+    snow = hourly_amount(data.get('snow', {}))
 
     return {
-        'temperature': float(main.get('temp') or 0),
-        'rainfall_mm': rain + snow,
-        'humidity': float(main.get('humidity') or 0),
+        'temperature': float(main['temp']),
+        'feels_like': float(main.get('feels_like', main['temp'])),
+        'rainfall_mm': round(rain + snow, 3),
+        'rain_mm': round(rain, 3),
+        'snow_mm': round(snow, 3),
+        'humidity': float(main['humidity']),
+        'condition': condition.get('main'),
+        'description': condition.get('description'),
+        'observed_at': data.get('dt'),
+        'provider_location': data.get('name'),
         'sunrise': sys.get('sunrise'),
         'sunset': sys.get('sunset'),
         'timezone_offset': data.get('timezone'),
@@ -452,13 +473,14 @@ class PredictLocationRiskView(APIView):
         try:
             weather = _fetch_openweather_weather(latitude, longitude)
         except requests.RequestException as exc:
-            weather = {
-                'temperature': None,
-                'rainfall_mm': 0.0,
-                'humidity': None,
-                'source': 'weather_fallback',
-                'error': str(exc),
-            }
+            return Response(
+                {
+                    'error': 'Live weather is temporarily unavailable',
+                    'details': str(exc),
+                    'source': 'weather_unavailable',
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         if zone_status == 'outside_monitored_hazard_zone':
             return Response(

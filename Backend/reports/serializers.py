@@ -8,20 +8,30 @@ class IncidentReportSerializer(serializers.ModelSerializer):
     Serializer for incident reports.
     """
     user_name = serializers.CharField(source='user.username', read_only=True)
+    phone_number = serializers.SerializerMethodField()
     region_name = serializers.SerializerMethodField()
     region_district = serializers.SerializerMethodField()
+    reviewer_name = serializers.CharField(source='reviewed_by.username', read_only=True)
     
     class Meta:
         model = IncidentReport
         fields = [
-            'id', 'user', 'user_name', 'region', 'region_name', 'region_district',
+            'id', 'user', 'user_name', 'phone_number', 'region', 'region_name', 'region_district',
             'description', 'latitude', 'longitude', 'area_name', 'image',
-            'report_radius_km', 'timestamp', 'is_verified'
+            'report_radius_km', 'timestamp', 'is_verified', 'review_status',
+            'hazard_level', 'reviewer_name', 'reviewed_at', 'expires_at',
         ]
         read_only_fields = [
             'id', 'user', 'timestamp', 'is_verified', 'user_name',
-            'region_name', 'region_district'
+            'region_name', 'region_district', 'phone_number', 'review_status',
+            'hazard_level', 'reviewer_name', 'reviewed_at', 'expires_at',
         ]
+
+    def get_phone_number(self, obj):
+        request = self.context.get('request')
+        if request and getattr(request.user, 'role', '').upper() == 'AUTHORITY':
+            return obj.user.phone_number
+        return None
 
     def get_region_name(self, obj):
         if obj.region:
@@ -31,7 +41,7 @@ class IncidentReportSerializer(serializers.ModelSerializer):
     def get_region_district(self, obj):
         if obj.region:
             return obj.region.district
-        return '50 km radius'
+        return '20 km radius'
 
 
 class SafetyStatusSerializer(serializers.ModelSerializer):
@@ -39,6 +49,7 @@ class SafetyStatusSerializer(serializers.ModelSerializer):
     Serializer for safety status updates.
     """
     user_name = serializers.CharField(source='user.username', read_only=True)
+    phone_number = serializers.SerializerMethodField()
     region_name = serializers.CharField(source='region.name', read_only=True)
     region_district = serializers.CharField(source='region.district', read_only=True)
     can_mark_again = serializers.SerializerMethodField()
@@ -53,6 +64,7 @@ class SafetyStatusSerializer(serializers.ModelSerializer):
             'id',
             'user',
             'user_name',
+            'phone_number',
             'region',
             'region_name',
             'region_district',
@@ -70,12 +82,19 @@ class SafetyStatusSerializer(serializers.ModelSerializer):
             'user',
             'last_marked_at',
             'user_name',
+            'phone_number',
             'region_name',
             'region_district',
             'can_mark_again',
             'next_allowed_at',
             'seconds_until_next_mark',
         ]
+
+    def get_phone_number(self, obj):
+        request = self.context.get('request')
+        if request and getattr(request.user, 'role', '').upper() == 'AUTHORITY':
+            return obj.user.phone_number
+        return None
 
     def _next_allowed_at(self, obj):
         from datetime import timedelta

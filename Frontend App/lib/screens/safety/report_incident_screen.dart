@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -8,6 +9,7 @@ import 'package:frontend_app/providers/language_provider.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/services/api_service.dart';
 import 'package:frontend_app/theme/theme_provider.dart';
+import 'package:image_picker/image_picker.dart';
 
 /// Report Incident Screen - Connects to Backend
 class ReportIncidentScreen extends StatefulWidget {
@@ -19,14 +21,14 @@ class ReportIncidentScreen extends StatefulWidget {
 
 class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
   static const int _yourLocationRegionValue = -1;
-  static const double _yourLocationReportRadiusKm = 50.0;
+  static const double _yourLocationReportRadiusKm = 20.0;
 
   final _formKey = GlobalKey<FormState>();
   final _locationController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _apiService = ApiService();
   final _reportMapController = MapController();
-  
+
   String _incidentType = 'Landslide Risk';
   int? _selectedRegionId = _yourLocationRegionValue;
   double? _latitude;
@@ -35,6 +37,8 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
   bool _isSubmitting = false;
   bool _isLoadingRegions = true;
   bool _isLoadingLocation = false;
+  final ImagePicker _imagePicker = ImagePicker();
+  XFile? _selectedImage;
 
   bool get _isYourLocationSelected =>
       _selectedRegionId == _yourLocationRegionValue;
@@ -61,14 +65,17 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
             children: [
               const Icon(LucideIcons.alertCircle, color: Colors.white),
               const SizedBox(width: 12),
-              Expanded(child: Text(context.read<LanguageProvider>().tr('Please log in to submit reports'))),
+              Expanded(
+                  child: Text(context
+                      .read<LanguageProvider>()
+                      .tr('Please log in to submit reports'))),
             ],
           ),
           backgroundColor: Colors.orange,
           duration: const Duration(seconds: 3),
         ),
       );
-      
+
       // Navigate to login screen
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
@@ -155,8 +162,10 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       setState(() => _isSubmitting = true);
 
       // Construct full description with incident type and location
-      final fullDescription = '$_incidentType at ${_locationController.text}: ${_descriptionController.text}';
-      final isYourLocationReport = _selectedRegionId == _yourLocationRegionValue;
+      final fullDescription =
+          '$_incidentType at ${_locationController.text}: ${_descriptionController.text}';
+      final isYourLocationReport =
+          _selectedRegionId == _yourLocationRegionValue;
       final submitRegionId = isYourLocationReport ? null : _selectedRegionId;
 
       debugPrint('=== SUBMITTING INCIDENT REPORT ===');
@@ -170,7 +179,8 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
           latitude: _latitude,
           longitude: _longitude,
           areaName: _locationController.text.trim(),
-          reportRadiusKm: isYourLocationReport ? _yourLocationReportRadiusKm : 50.0,
+          reportRadiusKm: _yourLocationReportRadiusKm,
+          imagePath: _selectedImage?.path,
         );
 
         debugPrint('Submit result: $success');
@@ -192,11 +202,12 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                 duration: const Duration(seconds: 3),
               ),
             );
-            
+
             // Clear form
             _descriptionController.clear();
             _locationController.clear();
-            
+            _selectedImage = null;
+
             // Navigate back after a short delay
             Future.delayed(const Duration(milliseconds: 500), () {
               if (mounted) Navigator.pop(context);
@@ -208,7 +219,10 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                   children: [
                     const Icon(LucideIcons.alertCircle, color: Colors.white),
                     const SizedBox(width: 12),
-                    Expanded(child: Text(context.read<LanguageProvider>().tr('Failed to submit report. Please try again.'))),
+                    Expanded(
+                        child: Text(context
+                            .read<LanguageProvider>()
+                            .tr('Failed to submit report. Please try again.'))),
                   ],
                 ),
                 backgroundColor: Colors.red,
@@ -219,17 +233,17 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         }
       } catch (e) {
         debugPrint('Submit error: $e');
-        
+
         if (mounted) {
           setState(() => _isSubmitting = false);
-          
+
           String errorMessage = 'Error: $e';
           if (e.toString().contains('Unauthorized')) {
             errorMessage = 'Please log in again to submit reports';
           } else if (e.toString().contains('Connection')) {
             errorMessage = 'Connection failed. Please check your internet';
           }
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
@@ -253,7 +267,10 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
             children: [
               const Icon(LucideIcons.info, color: Colors.white),
               const SizedBox(width: 12),
-              Expanded(child: Text(context.read<LanguageProvider>().tr('Please fill in all required fields'))),
+              Expanded(
+                  child: Text(context
+                      .read<LanguageProvider>()
+                      .tr('Please fill in all required fields'))),
             ],
           ),
           backgroundColor: Colors.orange,
@@ -300,7 +317,8 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                     const SizedBox(width: AppTheme.spacingSmall),
                     Expanded(
                       child: Text(
-                        context.watch<LanguageProvider>().tr('Your report helps authorities respond quickly to potential hazards.'),
+                        context.watch<LanguageProvider>().tr(
+                            'Your report helps authorities respond quickly to potential hazards.'),
                         style: TextStyle(
                           fontSize: 12,
                           color: AppTheme.textPrimary,
@@ -345,6 +363,12 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
               _buildDescriptionField()
                   .animate()
                   .fadeIn(duration: 600.ms, delay: 300.ms),
+
+              const SizedBox(height: AppTheme.spacingMedium),
+
+              _buildPhotoField()
+                  .animate()
+                  .fadeIn(duration: 600.ms, delay: 350.ms),
 
               const SizedBox(height: AppTheme.spacingLarge),
 
@@ -412,7 +436,9 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         decoration: AppTheme.inputDecoration(context),
         dropdownColor: AppTheme.surface,
         items: types.map((type) {
-          return DropdownMenuItem(value: type, child: Text(context.read<LanguageProvider>().tr(type)));
+          return DropdownMenuItem(
+              value: type,
+              child: Text(context.read<LanguageProvider>().tr(type)));
         }).toList(),
         onChanged: (value) => setState(() => _incidentType = value!),
       ),
@@ -454,7 +480,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         items: [
           const DropdownMenuItem<int>(
             value: _yourLocationRegionValue,
-            child: Text('Your Location (50 km radius)'),
+            child: Text('Your Location (20 km radius)'),
           ),
           if (!includeOnlyYourLocation)
             ..._regions.map((region) {
@@ -467,7 +493,8 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         onChanged: (value) {
           if (value == null) return;
           setState(() => _selectedRegionId = value);
-          if (value == _yourLocationRegionValue && (_latitude == null || _longitude == null)) {
+          if (value == _yourLocationRegionValue &&
+              (_latitude == null || _longitude == null)) {
             _loadCurrentLocation();
           } else if (value == _yourLocationRegionValue) {
             _moveReportMap(_latitude!, _longitude!, 11);
@@ -475,10 +502,14 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         },
         validator: (value) {
           if (value == null) {
-            return context.read<LanguageProvider>().tr('Please select a region');
+            return context
+                .read<LanguageProvider>()
+                .tr('Please select a region');
           }
-          if (value == _yourLocationRegionValue && (_latitude == null || _longitude == null)) {
-            return context.read<LanguageProvider>().tr('Please allow location access to submit your location report');
+          if (value == _yourLocationRegionValue &&
+              (_latitude == null || _longitude == null)) {
+            return context.read<LanguageProvider>().tr(
+                'Please allow location access to submit your location report');
           }
           return null;
         },
@@ -516,7 +547,8 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                  urlTemplate:
+                      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.hillsafe.app',
                   maxNativeZoom: 19,
                 ),
@@ -570,12 +602,15 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
           const SizedBox(height: AppTheme.spacingSmall),
           Row(
             children: [
-              const Icon(LucideIcons.radar, size: 16, color: AppTheme.accentTeal),
+              const Icon(LucideIcons.radar,
+                  size: 16, color: AppTheme.accentTeal),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   _latitude == null || _longitude == null
-                      ? context.read<LanguageProvider>().tr('Tap the map to select report coordinates')
+                      ? context
+                          .read<LanguageProvider>()
+                          .tr('Tap the map to select report coordinates')
                       : '${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)} • 50 km radius',
                   style: TextStyle(
                     color: AppTheme.textSecondary,
@@ -595,31 +630,38 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     return _buildFieldWrapper(
       label: 'Specific Location',
       icon: LucideIcons.mapPin,
-        child: TextFormField(
-          controller: _locationController,
-          decoration: AppTheme.inputDecoration(context).copyWith(
-            hintText: context.read<LanguageProvider>().tr('e.g., Near Mall Road, Main Bazaar'),
-            suffixIcon: _isLoadingLocation
-                ? const Padding(
-                    padding: EdgeInsets.all(14),
-                    child: SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppTheme.accentTeal,
-                      ),
+      child: TextFormField(
+        controller: _locationController,
+        decoration: AppTheme.inputDecoration(context).copyWith(
+          hintText: context
+              .read<LanguageProvider>()
+              .tr('e.g., Near Mall Road, Main Bazaar'),
+          suffixIcon: _isLoadingLocation
+              ? const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppTheme.accentTeal,
                     ),
-                  )
-                : IconButton(
-                    tooltip: context.read<LanguageProvider>().tr('Use current location'),
-                    icon: const Icon(LucideIcons.locateFixed, color: AppTheme.accentTeal),
-                    onPressed: _loadCurrentLocation,
                   ),
-          ),
+                )
+              : IconButton(
+                  tooltip: context
+                      .read<LanguageProvider>()
+                      .tr('Use current location'),
+                  icon: const Icon(LucideIcons.locateFixed,
+                      color: AppTheme.accentTeal),
+                  onPressed: _loadCurrentLocation,
+                ),
+        ),
         validator: (value) {
           if (value == null || value.isEmpty) {
-            return context.read<LanguageProvider>().tr('Please enter the specific location');
+            return context
+                .read<LanguageProvider>()
+                .tr('Please enter the specific location');
           }
           return null;
         },
@@ -635,14 +677,102 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         controller: _descriptionController,
         maxLines: 5,
         decoration: AppTheme.inputDecoration(context).copyWith(
-          hintText: context.read<LanguageProvider>().tr('Describe what you observed in detail...'),
+          hintText: context
+              .read<LanguageProvider>()
+              .tr('Describe what you observed in detail...'),
         ),
         validator: (value) {
           if (value == null || value.isEmpty) {
-            return context.read<LanguageProvider>().tr('Please describe the incident');
+            return context
+                .read<LanguageProvider>()
+                .tr('Please describe the incident');
           }
           return null;
         },
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final image = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 75,
+      maxWidth: 1600,
+    );
+    if (image != null && mounted) {
+      setState(() => _selectedImage = image);
+    }
+  }
+
+  void _showImageSourcePicker() {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(LucideIcons.camera),
+                  label: const Text('Take Photo'),
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(LucideIcons.image),
+                  label: const Text('Gallery'),
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoField() {
+    return _buildFieldWrapper(
+      label: 'Photo Evidence (Optional)',
+      icon: LucideIcons.camera,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_selectedImage != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(
+                File(_selectedImage!.path),
+                height: 190,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          OutlinedButton.icon(
+            onPressed: _showImageSourcePicker,
+            icon: Icon(_selectedImage == null
+                ? LucideIcons.camera
+                : LucideIcons.refreshCw),
+            label:
+                Text(_selectedImage == null ? 'Attach Photo' : 'Replace Photo'),
+          ),
+          if (_selectedImage != null)
+            TextButton.icon(
+              onPressed: () => setState(() => _selectedImage = null),
+              icon: const Icon(LucideIcons.trash2),
+              label: const Text('Remove Photo'),
+            ),
+        ],
       ),
     );
   }
@@ -675,7 +805,10 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
               )
             : Text(
                 context.watch<LanguageProvider>().tr('Submit Report'),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white),
               ),
       ),
     );

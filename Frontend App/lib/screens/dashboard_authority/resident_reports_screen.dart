@@ -32,8 +32,9 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
     setState(() => _isLoading = true);
     try {
       final regions = await _apiService.fetchRegions();
-      final reports = await _apiService.fetchAllReports(regionId: _selectedRegionId);
-      
+      final reports =
+          await _apiService.fetchAllReports(regionId: _selectedRegionId);
+
       if (mounted) {
         setState(() {
           _regions = regions;
@@ -50,11 +51,12 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
       }
     }
   }
-  
+
   Future<void> _refreshReports() async {
     setState(() => _isLoading = true);
     try {
-      final reports = await _apiService.fetchAllReports(regionId: _selectedRegionId);
+      final reports =
+          await _apiService.fetchAllReports(regionId: _selectedRegionId);
       if (mounted) {
         setState(() {
           _reports = reports;
@@ -71,6 +73,79 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
       _selectedRegionId = regionId;
     });
     _refreshReports();
+  }
+
+  Future<void> _reviewReport(
+    Map<String, dynamic> report, {
+    required String action,
+    String? hazardLevel,
+  }) async {
+    try {
+      await _apiService.reviewIncidentReport(
+        (report['id'] as num).toInt(),
+        action: action,
+        hazardLevel: hazardLevel,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(
+                action == 'APPROVE' ? 'Report approved' : 'Report declined')),
+      );
+      await _refreshReports();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to review report: $e')),
+      );
+    }
+  }
+
+  void _showApproveDialog(Map<String, dynamic> report) {
+    String level = 'MEDIUM';
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Approve Hazard Report'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                  'Choose the hazard classification. It will appear on maps for 24 hours.'),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: level,
+                decoration: const InputDecoration(labelText: 'Hazard level'),
+                items: const ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+                    .map((value) =>
+                        DropdownMenuItem(value: value, child: Text(value)))
+                    .toList(),
+                onChanged: (value) =>
+                    setDialogState(() => level = value ?? level),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _reviewReport(report, action: 'APPROVE', hazardLevel: level);
+              },
+              child: const Text('Approve'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _declineReport(Map<String, dynamic> report) async {
+    await _reviewReport(report, action: 'DECLINE');
   }
 
   @override
@@ -175,12 +250,15 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
   Widget _buildReportCard(Map<String, dynamic> report, int index) {
     final timestamp = DateHelper.toPakistanTime(report['timestamp']);
     final formattedDate = DateFormat('MMM d, y • h:mm a').format(timestamp);
-    final hasImage = report['image'] != null;
+    final imageUrl = _imageUrl(report['image']);
+    final hasImage = imageUrl != null;
     final areaName = (report['area_name'] as String?)?.trim();
     final placeName = areaName != null && areaName.isNotEmpty
         ? areaName
         : report['region_name'] ?? 'Unknown';
     final radiusKm = (report['report_radius_km'] as num?)?.toDouble();
+    final reviewStatus = report['review_status']?.toString() ?? 'PENDING';
+    final phoneNumber = report['phone_number']?.toString();
 
     return Card(
       margin: const EdgeInsets.only(bottom: AppTheme.spacingMedium),
@@ -196,57 +274,28 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: AppTheme.accentTealLight,
-                        radius: 16,
-                        child: Icon(LucideIcons.user, size: 16, color: AppTheme.accentTeal),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          report['user_name'] ?? 'Unknown User',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: AppTheme.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Region badge — keep orange status color (warning constant)
-                Flexible(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                    ),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(LucideIcons.mapPin, size: 12, color: Colors.orange),
-                        const SizedBox(width: 4),
-                        Flexible(
+                        CircleAvatar(
+                          backgroundColor: AppTheme.accentTealLight,
+                          radius: 16,
+                          child: Icon(LucideIcons.user,
+                              size: 16, color: AppTheme.accentTeal),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
                           child: Text(
-                            report['region_name'] ?? 'Your Location',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.orange,
-                              fontWeight: FontWeight.w600,
+                            report['user_name'] ?? 'Unknown User',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: AppTheme.textPrimary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -255,135 +304,220 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                       ],
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(LucideIcons.mapPinned, size: 14, color: AppTheme.textSecondary),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Place: $placeName',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
-                      fontWeight: FontWeight.w600,
+                  const SizedBox(width: 8),
+                  // Region badge — keep orange status color (warning constant)
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border:
+                            Border.all(color: Colors.orange.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(LucideIcons.mapPin,
+                              size: 12, color: Colors.orange),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              report['region_name'] ?? 'Your Location',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (radiusKm != null) ...[
+                ],
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
-                  Icon(LucideIcons.radar, size: 14, color: AppTheme.textSecondary),
+                  Icon(LucideIcons.mapPinned,
+                      size: 14, color: AppTheme.textSecondary),
                   const SizedBox(width: 6),
-                  Text(
-                    'Radius: ${radiusKm.toStringAsFixed(radiusKm.truncateToDouble() == radiusKm ? 0 : 1)} km',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Text(
+                      'Place: $placeName',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-            ],
-            Text(
-              report['description'] ?? '',
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.4,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            if (hasImage) ...[
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  '${ApiService.baseUrl}${report['image']}',
-                  height: 200,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      height: 200,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
+              if (phoneNumber != null && phoneNumber.isNotEmpty) ...[
+                Row(
+                  children: [
+                    Icon(LucideIcons.phone,
+                        size: 14, color: AppTheme.textSecondary),
+                    const SizedBox(width: 6),
+                    Text(phoneNumber,
+                        style: TextStyle(
+                            fontSize: 12, color: AppTheme.textSecondary)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (radiusKm != null) ...[
+                Row(
+                  children: [
+                    Icon(LucideIcons.radar,
+                        size: 14, color: AppTheme.textSecondary),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Radius: ${radiusKm.toStringAsFixed(radiusKm.truncateToDouble() == radiusKm ? 0 : 1)} km',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w600,
                       ),
-                      child: const Center(
-                        child: Icon(LucideIcons.imageOff, color: Colors.grey),
-                      ),
-                    );
-                  },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              Text(
+                report['description'] ?? '',
+                style: TextStyle(
+                  fontSize: 15,
+                  height: 1.4,
+                  color: AppTheme.textPrimary,
                 ),
               ),
-            ],
-            const SizedBox(height: 12),
-            Divider(height: 1, color: AppTheme.borderColor),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(LucideIcons.clock, size: 14, color: AppTheme.textSecondary),
-                const SizedBox(width: 6),
-                Text(
-                  formattedDate,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textSecondary,
+              if (hasImage) ...[
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    imageUrl!,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 200,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Center(
+                          child: Icon(LucideIcons.imageOff, color: Colors.grey),
+                        ),
+                      );
+                    },
                   ),
                 ),
-                const Spacer(),
-                // Status badges — keep success/warning semantic colors
-                if (report['is_verified'] == true)
-                  const Row(
+              ],
+              const SizedBox(height: 12),
+              Divider(height: 1, color: AppTheme.borderColor),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(LucideIcons.clock,
+                      size: 14, color: AppTheme.textSecondary),
+                  const SizedBox(width: 6),
+                  Text(
+                    formattedDate,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  const Spacer(),
+                  // Status badges — keep success/warning semantic colors
+                  Row(
                     children: [
-                      Icon(LucideIcons.checkCircle, size: 14, color: Colors.green),
-                      SizedBox(width: 4),
+                      Icon(
+                        reviewStatus == 'APPROVED'
+                            ? LucideIcons.checkCircle
+                            : reviewStatus == 'DECLINED'
+                                ? LucideIcons.xCircle
+                                : LucideIcons.clock,
+                        size: 14,
+                        color: reviewStatus == 'APPROVED'
+                            ? Colors.green
+                            : reviewStatus == 'DECLINED'
+                                ? Colors.red
+                                : Colors.orange,
+                      ),
+                      const SizedBox(width: 4),
                       Text(
-                        'Verified',
-                        style: TextStyle(
+                        reviewStatus,
+                        style: const TextStyle(
                           fontSize: 12,
-                          color: Colors.green,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
-                  )
-                else
-                  const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+              if (reviewStatus == 'PENDING') ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _declineReport(report),
+                        icon: const Icon(LucideIcons.x),
+                        label: const Text('Decline'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showApproveDialog(report),
+                        icon: const Icon(LucideIcons.check),
+                        label: const Text('Approve'),
+                      ),
+                    ),
+                  ],
+                ),
               ],
-            ),
-          ],
+            ],
           ),
         ),
       ),
     )
-    .animate()
-    .fadeIn(duration: 400.ms, delay: (50 * index).ms)
-    .slideY(begin: 0.1, end: 0);
+        .animate()
+        .fadeIn(duration: 400.ms, delay: (50 * index).ms)
+        .slideY(begin: 0.1, end: 0);
   }
 
   void _showReportDetail(Map<String, dynamic> report) {
     final lat = _asDouble(report['latitude']);
     final lon = _asDouble(report['longitude']);
-    final timeLabel = DateHelper.format(report['timestamp'], pattern: 'MMM d, yyyy • h:mm a');
+    final timeLabel =
+        DateHelper.format(report['timestamp'], pattern: 'MMM d, yyyy • h:mm a');
     final name = report['user_name']?.toString() ?? 'Unknown resident';
     final areaName = report['area_name']?.toString().trim();
     final regionName = report['region_name']?.toString() ?? 'Your Location';
     final district = report['region_district']?.toString();
-    final placeName = areaName != null && areaName.isNotEmpty ? areaName : regionName;
-    final description = report['description']?.toString() ?? 'No description provided.';
+    final placeName =
+        areaName != null && areaName.isNotEmpty ? areaName : regionName;
+    final description =
+        report['description']?.toString() ?? 'No description provided.';
     final radiusKm = _asDouble(report['report_radius_km']);
     final isVerified = report['is_verified'] == true;
+    final phoneNumber = report['phone_number']?.toString();
+    final reviewStatus = report['review_status']?.toString() ?? 'PENDING';
+    final hazardLevel = report['hazard_level']?.toString();
 
     showDialog(
       context: context,
@@ -401,7 +535,11 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 18, 16, 22),
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Color(0xFF92400E), Color(0xFFF59E0B), Color(0xFFFBBF24)],
+                    colors: [
+                      Color(0xFF92400E),
+                      Color(0xFFF59E0B),
+                      Color(0xFFFBBF24)
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -414,9 +552,11 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.16),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white.withOpacity(0.45)),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.45)),
                       ),
-                      child: const Icon(LucideIcons.fileWarning, color: Colors.white, size: 30),
+                      child: const Icon(LucideIcons.fileWarning,
+                          color: Colors.white, size: 30),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -425,12 +565,19 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                         children: [
                           const Text(
                             'Resident Report',
-                            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, height: 1.1),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                height: 1.1),
                           ),
                           const SizedBox(height: 5),
                           Text(
                             timeLabel,
-                            style: TextStyle(color: Colors.white.withOpacity(0.88), fontSize: 13, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.88),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500),
                           ),
                         ],
                       ),
@@ -449,11 +596,23 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _detailTile(icon: LucideIcons.user, label: 'Resident', value: name, accentColor: Colors.orange),
+                      _detailTile(
+                          icon: LucideIcons.user,
+                          label: 'Resident',
+                          value: name,
+                          accentColor: Colors.orange),
+                      if (phoneNumber != null && phoneNumber.isNotEmpty)
+                        _detailTile(
+                            icon: LucideIcons.phone,
+                            label: 'Phone',
+                            value: phoneNumber,
+                            accentColor: Colors.orange),
                       _detailTile(
                         icon: LucideIcons.mapPin,
                         label: 'Place',
-                        value: (district == null || district.isEmpty || district == '50 km radius')
+                        value: (district == null ||
+                                district.isEmpty ||
+                                district == '50 km radius')
                             ? placeName
                             : '$placeName, $district',
                         accentColor: Colors.orange,
@@ -462,7 +621,8 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                         _detailTile(
                           icon: LucideIcons.radar,
                           label: 'Report Radius',
-                          value: '${radiusKm.toStringAsFixed(radiusKm.truncateToDouble() == radiusKm ? 0 : 1)} km',
+                          value:
+                              '${radiusKm.toStringAsFixed(radiusKm.truncateToDouble() == radiusKm ? 0 : 1)} km',
                           accentColor: Colors.orange,
                         ),
                       _detailTile(
@@ -472,11 +632,20 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                         accentColor: Colors.orange,
                       ),
                       _detailTile(
-                        icon: isVerified ? LucideIcons.checkCircle : LucideIcons.alertCircle,
+                        icon: isVerified
+                            ? LucideIcons.checkCircle
+                            : LucideIcons.alertCircle,
                         label: 'Status',
-                        value: isVerified ? 'Verified' : 'Pending Verification',
+                        value: reviewStatus,
                         accentColor: isVerified ? Colors.green : Colors.orange,
                       ),
+                      if (reviewStatus == 'APPROVED' && hazardLevel != null)
+                        _detailTile(
+                          icon: LucideIcons.triangleAlert,
+                          label: 'Hazard Classification',
+                          value: hazardLevel,
+                          accentColor: Colors.red,
+                        ),
                       if (lat != null && lon != null)
                         _coordsTile(
                           dialogContext: ctx,
@@ -488,7 +657,29 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                   ),
                 ),
               ),
-              _dialogButton(ctx: ctx),
+              if (reviewStatus == 'PENDING')
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _declineReport(report),
+                          child: const Text('Decline'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => _showApproveDialog(report),
+                          child: const Text('Approve'),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                _dialogButton(ctx: ctx),
             ],
           ),
         ),
@@ -499,6 +690,13 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
   double? _asDouble(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '');
+  }
+
+  String? _imageUrl(dynamic value) {
+    final path = value?.toString();
+    if (path == null || path.isEmpty) return null;
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    return '${ApiService.baseUrl}$path';
   }
 
   Widget _detailTile({
@@ -515,7 +713,12 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.borderColor),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4))
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -523,7 +726,8 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
           Container(
             width: 38,
             height: 38,
-            decoration: BoxDecoration(color: accentColor.withOpacity(0.1), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.1), shape: BoxShape.circle),
             child: Icon(icon, color: accentColor, size: 20),
           ),
           const SizedBox(width: 12),
@@ -531,9 +735,18 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
+                Text(label,
+                    style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text(value, style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w700, height: 1.25)),
+                Text(value,
+                    style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        height: 1.25)),
               ],
             ),
           ),
@@ -578,8 +791,10 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
               Container(
                 width: 38,
                 height: 38,
-                decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
-                child: const Icon(LucideIcons.crosshair, color: Colors.white, size: 20),
+                decoration: const BoxDecoration(
+                    color: Colors.orange, shape: BoxShape.circle),
+                child: const Icon(LucideIcons.crosshair,
+                    color: Colors.white, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -588,12 +803,18 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                   children: [
                     const Text(
                       'Exact Coordinates (Tap to Verify)',
-                      style: TextStyle(color: Color(0xFF92400E), fontSize: 11, fontWeight: FontWeight.w800),
+                      style: TextStyle(
+                          color: Color(0xFF92400E),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}',
-                      style: const TextStyle(color: Color(0xFF111827), fontSize: 14, fontWeight: FontWeight.w800),
+                      style: const TextStyle(
+                          color: Color(0xFF111827),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800),
                     ),
                   ],
                 ),
@@ -619,9 +840,11 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
             foregroundColor: Colors.white,
             elevation: 0,
             padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
-          child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w800)),
+          child: const Text('Close',
+              style: TextStyle(fontWeight: FontWeight.w800)),
         ),
       ),
     );

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:frontend_app/theme/app_theme.dart';
 import 'package:frontend_app/services/api_service.dart';
@@ -11,23 +10,32 @@ import 'package:frontend_app/services/date_helper.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // ── Accent colours (same in light & dark) ───────────────────────────────────
-const _kTeal    = Color(0xFF2A7D6F); // Premium Teal accent matching the sign-in button
-const _kRed     = Color(0xFFFF3B3B);
-const _kAmber   = Color(0xFFFFB800);
-const _kGreen   = Color(0xFF00E676);
+const _kTeal =
+    Color(0xFF2A7D6F); // Premium Teal accent matching the sign-in button
+const _kRed = Color(0xFFFF3B3B);
+const _kAmber = Color(0xFFFFB800);
+const _kGreen = Color(0xFF00E676);
 
 // ── Per-mode colour helpers ──────────────────────────────────────────────────
 // These are functions so they read AppTheme.isDark at build time, not compile time.
-Color _bg()         => AppTheme.isDark ? const Color(0xFF0D0F14)  : const Color(0xFFF5F4F0);
-Color _surface()    => AppTheme.isDark ? const Color(0xFF161A22)  : Colors.white;
-Color _border()     => AppTheme.isDark ? const Color(0xFF252B38)  : const Color(0xFFE5E7EB);
-Color _textPri()    => AppTheme.isDark ? const Color(0xFFEAECF0)  : const Color(0xFF111827);
-Color _textSec()    => AppTheme.isDark ? const Color(0xFF6B7280)  : const Color(0xFF6B7280);
+Color _bg() =>
+    AppTheme.isDark ? const Color(0xFF0D0F14) : const Color(0xFFF5F4F0);
+Color _surface() => AppTheme.isDark ? const Color(0xFF161A22) : Colors.white;
+Color _border() =>
+    AppTheme.isDark ? const Color(0xFF252B38) : const Color(0xFFE5E7EB);
+Color _textPri() =>
+    AppTheme.isDark ? const Color(0xFFEAECF0) : const Color(0xFF111827);
+Color _textSec() =>
+    AppTheme.isDark ? const Color(0xFF6B7280) : const Color(0xFF6B7280);
 
-Color _redDim()     => AppTheme.isDark ? const Color(0xFF3B0B0B)  : const Color(0xFFFEF2F2);
-Color _amberDim()   => AppTheme.isDark ? const Color(0xFF3B2A00)  : const Color(0xFFFFFBEB);
-Color _greenDim()   => AppTheme.isDark ? const Color(0xFF003B1A)  : const Color(0xFFF0FDF4);
-Color _tealDim()    => AppTheme.isDark ? const Color(0xFF003D36)  : const Color(0xFFE8F5F2);
+Color _redDim() =>
+    AppTheme.isDark ? const Color(0xFF3B0B0B) : const Color(0xFFFEF2F2);
+Color _amberDim() =>
+    AppTheme.isDark ? const Color(0xFF3B2A00) : const Color(0xFFFFFBEB);
+Color _greenDim() =>
+    AppTheme.isDark ? const Color(0xFF003B1A) : const Color(0xFFF0FDF4);
+Color _tealDim() =>
+    AppTheme.isDark ? const Color(0xFF003D36) : const Color(0xFFE8F5F2);
 
 // ── Per-mode font helpers ────────────────────────────────────────────────────
 TextStyle _popStyle({
@@ -123,9 +131,8 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
       systemNavigationBarColor: brightness == Brightness.dark
           ? const Color(0xFF0D0F14)
           : const Color(0xFFF5F4F0),
-      systemNavigationBarIconBrightness: brightness == Brightness.dark
-          ? Brightness.light
-          : Brightness.dark,
+      systemNavigationBarIconBrightness:
+          brightness == Brightness.dark ? Brightness.light : Brightness.dark,
     );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -138,74 +145,105 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-            // ── Header ────────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
-                child: _buildHeader(context),
-              ),
-            ),
-
-            // ── Situation Overview ─────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                child: _buildQuickStats()
-                    .animate()
-                    .fadeIn(duration: 500.ms)
-                    .slideY(begin: 0.08, end: 0),
-              ),
-            ),
-
-            // ── Recent Safety Check-ins ────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: _buildRecentSafetyCheckins()
-                    .animate()
-                    .fadeIn(duration: 500.ms, delay: 80.ms)
-                    .slideY(begin: 0.08, end: 0),
-              ),
-            ),
-
-            // ── SOS Requests ───────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: _buildSOSRequests()
-                    .animate()
-                    .fadeIn(duration: 500.ms, delay: 160.ms)
-                    .slideY(begin: 0.08, end: 0),
-              ),
-            ),
-
-            // ── Quick Access ───────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-                child: _sectionLabel('QUICK ACCESS'),
-              ),
-            ),
-
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 1.15,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
+              // ── Header ────────────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding:
+                      EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+                  child: _buildHeader(context),
                 ),
-                delegate: SliverChildListDelegate([
-                  _buildMenuItem(context, 'War Room',         'Live map',              LucideIcons.map,        _kTeal,              '/authority_map',    0),
-                  _buildMenuItem(context, 'Regional Summary', 'District risk scores',  LucideIcons.barChart3,  const Color(0xFF8B5CF6), '/regional_summary', 1),
-                  _buildMenuItem(context, 'Analytics',        'Trends & forecasts',    LucideIcons.trendingUp, const Color(0xFF06B6D4), '/analytics_trends', 2),
-                  _buildMenuItem(context, 'Alert Residents',  'Create & broadcast',    LucideIcons.megaphone,  _kRed,               '/alert_management', 3),
-                  _buildMenuItem(context, 'Alert History',    'Past warnings',         LucideIcons.history,    _kAmber,             '/alert_feed',       4),
-                  _buildMenuItem(context, 'Resident Reports', 'View community alerts', LucideIcons.fileText,   _kGreen,             '/resident_reports', 5),
-                ]),
               ),
-            ),
+
+              // ── Situation Overview ─────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  child: _buildQuickStats()
+                      .animate()
+                      .fadeIn(duration: 500.ms)
+                      .slideY(begin: 0.08, end: 0),
+                ),
+              ),
+
+              // ── Recent Safety Check-ins ────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: _buildRecentSafetyCheckins()
+                      .animate()
+                      .fadeIn(duration: 500.ms, delay: 80.ms)
+                      .slideY(begin: 0.08, end: 0),
+                ),
+              ),
+
+              // ── SOS Requests ───────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: _buildSOSRequests()
+                      .animate()
+                      .fadeIn(duration: 500.ms, delay: 160.ms)
+                      .slideY(begin: 0.08, end: 0),
+                ),
+              ),
+
+              // ── Quick Access ───────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+                  child: _sectionLabel('QUICK ACCESS'),
+                ),
+              ),
+
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 1.15,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  delegate: SliverChildListDelegate([
+                    _buildMenuItem(context, 'War Room', 'Live map',
+                        LucideIcons.map, _kTeal, '/authority_map', 0),
+                    _buildMenuItem(
+                        context,
+                        'Regional Summary',
+                        'District risk scores',
+                        LucideIcons.barChart3,
+                        const Color(0xFF8B5CF6),
+                        '/regional_summary',
+                        1),
+                    _buildMenuItem(
+                        context,
+                        'Analytics',
+                        'Trends & forecasts',
+                        LucideIcons.trendingUp,
+                        const Color(0xFF06B6D4),
+                        '/analytics_trends',
+                        2),
+                    _buildMenuItem(
+                        context,
+                        'Alert Residents',
+                        'Create & broadcast',
+                        LucideIcons.megaphone,
+                        _kRed,
+                        '/alert_management',
+                        3),
+                    _buildMenuItem(context, 'Alert History', 'Past warnings',
+                        LucideIcons.history, _kAmber, '/alert_feed', 4),
+                    _buildMenuItem(
+                        context,
+                        'Resident Reports',
+                        'View community alerts',
+                        LucideIcons.fileText,
+                        _kGreen,
+                        '/resident_reports',
+                        5),
+                  ]),
+                ),
+              ),
             ],
           ),
         ),
@@ -251,7 +289,9 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                           letterSpacing: 2,
                           color: _kTeal,
                           shadows: [
-                            Shadow(color: _kTeal.withOpacity(0.45), blurRadius: 14),
+                            Shadow(
+                                color: _kTeal.withOpacity(0.45),
+                                blurRadius: 14),
                           ],
                         ),
                       ),
@@ -301,11 +341,14 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
     return Row(
       children: [
         Container(
-          width: 3.5, height: 16,
-          decoration: BoxDecoration(color: _kTeal, borderRadius: BorderRadius.circular(2)),
+          width: 3.5,
+          height: 16,
+          decoration: BoxDecoration(
+              color: _kTeal, borderRadius: BorderRadius.circular(2)),
         ),
         const SizedBox(width: 8),
-        Text(text,
+        Text(
+          text,
           style: _popStyle(
             fontSize: 13,
             fontWeight: FontWeight.w800,
@@ -346,7 +389,10 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                         children: [
                           Text(
                             'Connection Timeout / Error',
-                            style: _popStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _textPri()),
+                            style: _popStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: _textPri()),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -362,12 +408,15 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                 ElevatedButton.icon(
                   onPressed: () => _refreshDashboardData(),
                   icon: const Icon(LucideIcons.refreshCw, size: 14),
-                  label: Text('Retry Connection', style: _popStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  label: Text('Retry Connection',
+                      style:
+                          _popStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _kTeal,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ],
@@ -376,18 +425,22 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
         }
 
         final safetyData = (snapshot.data?[0] as Map<String, dynamic>?) ?? {};
-        final regions    = (snapshot.data?[1] as List<dynamic>?) ?? [];
-        final alerts     = (snapshot.data?[2] as List<dynamic>?) ?? [];
-        final sosReqs    = (snapshot.data != null && snapshot.data!.length > 3)
+        final regions = (snapshot.data?[1] as List<dynamic>?) ?? [];
+        final alerts = (snapshot.data?[2] as List<dynamic>?) ?? [];
+        final sosReqs = (snapshot.data != null && snapshot.data!.length > 3)
             ? (snapshot.data?[3] as List<dynamic>? ?? [])
             : [];
 
-        final totalSafe        = safetyData['total_safe']  ?? 0;
-        final totalUsers       = safetyData['total_users'] ?? 0;
-        final highRiskCount    = regions.where((r) => ((r['current_risk_score'] as num?)?.toDouble() ?? 0) >= 0.5).length;
-        final alertCount       = alerts.length;
-        final activeSosCount   = sosReqs.where((s) => s['status'] != 'RESOLVED').length;
-        final loading          = snapshot.connectionState == ConnectionState.waiting;
+        final totalSafe = safetyData['total_safe'] ?? 0;
+        final totalUsers = safetyData['total_users'] ?? 0;
+        final highRiskCount = regions
+            .where((r) =>
+                ((r['current_risk_score'] as num?)?.toDouble() ?? 0) >= 0.5)
+            .length;
+        final alertCount = alerts.length;
+        final activeSosCount =
+            sosReqs.where((s) => s['status'] != 'RESOLVED').length;
+        final loading = snapshot.connectionState == ConnectionState.waiting;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -400,12 +453,16 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                   const SizedBox(
                     width: 14,
                     height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: _kTeal),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: _kTeal),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     'Waking server...',
-                    style: _popStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _kTeal),
+                    style: _popStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _kTeal),
                   ),
                 ],
               ],
@@ -416,17 +473,20 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(child: _StatCard(
+                  Expanded(
+                      child: _StatCard(
                     label: 'HIGH RISK',
                     value: loading ? '–' : '$highRiskCount',
                     icon: LucideIcons.alertTriangle,
-                    iconColor: _kRed, // Total red theme: red icon and left capsule
+                    iconColor:
+                        _kRed, // Total red theme: red icon and left capsule
                     valueColor: _kRed,
                     dimColor: _redDim(),
                     borderColor: _kRed.withOpacity(0.35),
                   )),
                   const SizedBox(width: 12),
-                  Expanded(child: _StatCard(
+                  Expanded(
+                      child: _StatCard(
                     label: 'ACTIVE ALERTS',
                     value: loading ? '–' : '$alertCount',
                     icon: LucideIcons.bell,
@@ -444,7 +504,8 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(child: _StatCard(
+                  Expanded(
+                      child: _StatCard(
                     label: 'USERS SAFE',
                     value: loading ? '–' : '$totalSafe / $totalUsers',
                     icon: LucideIcons.shieldCheck,
@@ -454,10 +515,13 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                     borderColor: _kTeal.withOpacity(0.25),
                   )),
                   const SizedBox(width: 12),
-                  Expanded(child: _StatCard(
+                  Expanded(
+                      child: _StatCard(
                     label: 'ACTIVE SOS',
                     value: loading ? '–' : '$activeSosCount',
-                    subtitle: activeSosCount > 0 ? 'Require response' : 'No active SOS',
+                    subtitle: activeSosCount > 0
+                        ? 'Require response'
+                        : 'No active SOS',
                     icon: LucideIcons.siren,
                     iconColor: _kRed,
                     valueColor: _kRed,
@@ -490,7 +554,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text('Failed to connect to safety status database.',
-                      style: TextStyle(fontSize: 13, color: _kRed)),
+                        style: TextStyle(fontSize: 13, color: _kRed)),
                   ),
                 ]),
               ],
@@ -498,8 +562,9 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
           );
         }
 
-        final checkins = (snapshot.data?['recent_checkins'] as List<dynamic>? ?? [])
-            .cast<Map<String, dynamic>>();
+        final checkins =
+            (snapshot.data?['recent_checkins'] as List<dynamic>? ?? [])
+                .cast<Map<String, dynamic>>();
         final loading = snapshot.connectionState == ConnectionState.waiting;
 
         return _DarkCard(
@@ -509,34 +574,42 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
               _sectionLabel(
                 'RECENT SAFETY CHECK-INS',
                 trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: _greenDim(),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: _kGreen.withOpacity(0.4)),
                   ),
-                  child: Text('${checkins.length}',
-                    style: const TextStyle(color: _kGreen, fontSize: 12, fontWeight: FontWeight.w800),
+                  child: Text(
+                    '${checkins.length}',
+                    style: const TextStyle(
+                        color: _kGreen,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
               const SizedBox(height: 14),
               if (loading)
-                LinearProgressIndicator(minHeight: 2, color: _kTeal, backgroundColor: _border())
+                LinearProgressIndicator(
+                    minHeight: 2, color: _kTeal, backgroundColor: _border())
               else if (checkins.isEmpty)
                 Row(children: [
                   Icon(LucideIcons.shieldCheck, size: 16, color: _textSec()),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text('No active safety check-ins in the last 30 minutes.',
-                      style: TextStyle(fontSize: 13, color: _textSec())),
+                    child: Text(
+                        'No active safety check-ins in the last 30 minutes.',
+                        style: TextStyle(fontSize: 13, color: _textSec())),
                   ),
                 ])
               else
                 ...checkins.take(3).map((checkin) {
-                  final lat       = (checkin['latitude']  as num?)?.toDouble();
-                  final lon       = (checkin['longitude'] as num?)?.toDouble();
-                  final timeLabel = DateHelper.format(checkin['last_marked_at']);
+                  final lat = (checkin['latitude'] as num?)?.toDouble();
+                  final lon = (checkin['longitude'] as num?)?.toDouble();
+                  final timeLabel =
+                      DateHelper.format(checkin['last_marked_at']);
                   final area = (checkin['area_name'] as String?)?.trim();
 
                   return GestureDetector(
@@ -551,20 +624,26 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                       ),
                       child: Row(children: [
                         Container(
-                          width: 36, height: 36,
+                          width: 36,
+                          height: 36,
                           decoration: BoxDecoration(
                             color: _kGreen.withOpacity(0.15),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(LucideIcons.shieldCheck, color: _kGreen, size: 18),
+                          child: const Icon(LucideIcons.shieldCheck,
+                              color: _kGreen, size: 18),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('${checkin['user_name'] ?? 'Resident'} marked safe',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _textPri()),
+                              Text(
+                                '${checkin['user_name'] ?? 'Resident'} marked safe',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: _textPri()),
                               ),
                               const SizedBox(height: 2),
                               Text(
@@ -577,12 +656,14 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                                 ].join(' • '),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: 11, color: _textSec()),
+                                style:
+                                    TextStyle(fontSize: 11, color: _textSec()),
                               ),
                             ],
                           ),
                         ),
-                        Icon(LucideIcons.chevronRight, color: _textSec(), size: 16),
+                        Icon(LucideIcons.chevronRight,
+                            color: _textSec(), size: 16),
                       ]),
                     ),
                   );
@@ -612,7 +693,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text('Failed to connect to SOS database.',
-                      style: TextStyle(fontSize: 13, color: _kRed)),
+                        style: TextStyle(fontSize: 13, color: _kRed)),
                   ),
                 ]),
               ],
@@ -621,7 +702,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
         }
 
         final requests = snapshot.data ?? [];
-        final loading  = snapshot.connectionState == ConnectionState.waiting;
+        final loading = snapshot.connectionState == ConnectionState.waiting;
 
         return _DarkCard(
           borderColor: _kRed.withOpacity(0.35),
@@ -631,39 +712,48 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
               _sectionLabel(
                 'SOS REQUESTS',
                 trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: _redDim(),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: _kRed.withOpacity(0.5)),
                   ),
-                  child: Text('${requests.length}',
-                    style: const TextStyle(color: _kRed, fontSize: 12, fontWeight: FontWeight.w800),
+                  child: Text(
+                    '${requests.length}',
+                    style: const TextStyle(
+                        color: _kRed,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
               const SizedBox(height: 14),
               if (loading)
-                LinearProgressIndicator(minHeight: 2, color: _kRed, backgroundColor: _border())
+                LinearProgressIndicator(
+                    minHeight: 2, color: _kRed, backgroundColor: _border())
               else if (requests.isEmpty)
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     child: Text('No emergency SOS requests received.',
-                      style: TextStyle(color: _textSec(), fontSize: 13)),
+                        style: TextStyle(color: _textSec(), fontSize: 13)),
                   ),
                 )
               else
                 ...requests.take(5).map((request) {
-                  final timeAgo   = _formatTimeAgo(request['timestamp']);
-                  final name      = request['name'] ?? 'Unknown';
-                  final location  = request['region_name'] ?? request['area_name'] ?? 'Unknown location';
+                  final timeAgo = _formatTimeAgo(request['timestamp']);
+                  final name = request['name'] ?? 'Unknown';
+                  final location = request['region_name'] ??
+                      request['area_name'] ??
+                      'Unknown location';
 
                   return GestureDetector(
                     onTap: () => _showSOSDetail(request),
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
                         color: _redDim(),
                         borderRadius: BorderRadius.circular(12),
@@ -672,16 +762,21 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                       child: Row(children: [
                         // Avatar
                         Container(
-                          width: 40, height: 40,
+                          width: 40,
+                          height: 40,
                           decoration: BoxDecoration(
                             color: _kRed.withOpacity(0.15),
                             shape: BoxShape.circle,
-                            border: Border.all(color: _kRed.withOpacity(0.4), width: 1.5),
+                            border: Border.all(
+                                color: _kRed.withOpacity(0.4), width: 1.5),
                           ),
                           child: Center(
                             child: Text(
                               name.isNotEmpty ? name[0].toUpperCase() : '?',
-                              style: const TextStyle(color: _kRed, fontWeight: FontWeight.w900, fontSize: 17),
+                              style: const TextStyle(
+                                  color: _kRed,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 17),
                             ),
                           ),
                         ),
@@ -690,30 +785,45 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(name,
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _textPri()),
+                              Text(
+                                name,
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: _textPri()),
                               ),
                               const SizedBox(height: 3),
-                              Text(location,
-                                style: TextStyle(fontSize: 12, color: _textSec()),
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                              Text(
+                                location,
+                                style:
+                                    TextStyle(fontSize: 12, color: _textSec()),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               if (timeAgo.isNotEmpty) ...[
                                 const SizedBox(height: 2),
-                                Text(timeAgo, style: TextStyle(fontSize: 11, color: _textSec())),
+                                Text(timeAgo,
+                                    style: TextStyle(
+                                        fontSize: 11, color: _textSec())),
                               ],
                             ],
                           ),
                         ),
                         // NEEDS HELP button
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: _kTeal, width: 1.5),
                           ),
-                          child: const Text('NEEDS HELP',
-                            style: TextStyle(color: _kTeal, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                          child: const Text(
+                            'NEEDS HELP',
+                            style: TextStyle(
+                                color: _kTeal,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5),
                           ),
                         ),
                       ]),
@@ -752,7 +862,10 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _border()),
           boxShadow: [
-            BoxShadow(color: color.withOpacity(0.12), blurRadius: 20, offset: const Offset(0, 6)),
+            BoxShadow(
+                color: color.withOpacity(0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 6)),
           ],
         ),
         child: Column(
@@ -769,17 +882,24 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
               child: Icon(icon, color: color, size: 22),
             ),
             const SizedBox(height: 12),
-            Text(title,
+            Text(
+              title,
               style: TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w700,
-                color: _textPri(), letterSpacing: -0.2, height: 1.2,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: _textPri(),
+                letterSpacing: -0.2,
+                height: 1.2,
               ),
-              maxLines: 2, overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 3),
-            Text(subtitle,
+            Text(
+              subtitle,
               style: TextStyle(fontSize: 11, color: _textSec()),
-              maxLines: 1, overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -793,21 +913,23 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
   // ── UTILITIES ─────────────────────────────────────────────────────────────
   String _formatTimeAgo(dynamic timestamp) {
     final d = DateHelper.getDifferenceFromNow(timestamp);
-    if (d.inDays    > 0) return '${d.inDays}d ago';
-    if (d.inHours   > 0) return '${d.inHours}h ago';
+    if (d.inDays > 0) return '${d.inDays}d ago';
+    if (d.inHours > 0) return '${d.inHours}h ago';
     if (d.inMinutes > 0) return '${d.inMinutes}m ago';
     return 'Just now';
   }
 
   // ── DIALOGS ───────────────────────────────────────────────────────────────
   void _showSafetyCheckinDetail(Map<String, dynamic> checkin) {
-    final lat       = (checkin['latitude']  as num?)?.toDouble();
-    final lon       = (checkin['longitude'] as num?)?.toDouble();
-    final timeLabel = DateHelper.format(checkin['last_marked_at'], pattern: 'MMM d, yyyy • h:mm a');
-    final name     = checkin['user_name']?.toString() ?? 'Resident';
-    final region   = checkin['region_name']?.toString() ?? 'Unknown region';
+    final lat = (checkin['latitude'] as num?)?.toDouble();
+    final lon = (checkin['longitude'] as num?)?.toDouble();
+    final timeLabel = DateHelper.format(checkin['last_marked_at'],
+        pattern: 'MMM d, yyyy • h:mm a');
+    final name = checkin['user_name']?.toString() ?? 'Resident';
+    final region = checkin['region_name']?.toString() ?? 'Unknown region';
     final district = checkin['district']?.toString();
-    final area     = checkin['area_name']?.toString();
+    final area = checkin['area_name']?.toString();
+    final phone = checkin['phone_number']?.toString();
 
     showDialog(
       context: context,
@@ -825,49 +947,83 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                 padding: const EdgeInsets.fromLTRB(20, 18, 16, 22),
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Color(0xFF065F46), Color(0xFF16A34A), Color(0xFF22C55E)],
+                    colors: [
+                      Color(0xFF065F46),
+                      Color(0xFF16A34A),
+                      Color(0xFF22C55E)
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                 ),
                 child: Row(children: [
                   Container(
-                    width: 54, height: 54,
+                    width: 54,
+                    height: 54,
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.16),
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white.withOpacity(0.45)),
                     ),
-                    child: const Icon(LucideIcons.shieldCheck, color: Colors.white, size: 30),
+                    child: const Icon(LucideIcons.shieldCheck,
+                        color: Colors.white, size: 30),
                   ),
                   const SizedBox(width: 14),
-                  Expanded(child: Column(
+                  Expanded(
+                      child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text('Safety Check-in',
-                        style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, height: 1.1)),
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              height: 1.1)),
                       const SizedBox(height: 5),
                       Text(timeLabel,
-                        style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 13, fontWeight: FontWeight.w500)),
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.86),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500)),
                     ],
                   )),
-                  IconButton(tooltip: 'Close', onPressed: () => Navigator.pop(ctx),
-                    icon: const Icon(LucideIcons.x, color: Colors.white)),
+                  IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(LucideIcons.x, color: Colors.white)),
                 ]),
               ),
-              Flexible(child: SingleChildScrollView(
+              Flexible(
+                  child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _detailTile(icon: LucideIcons.user,   label: 'Resident', value: name,    accentColor: const Color(0xFF16A34A)),
                     _detailTile(
-                      icon: LucideIcons.mapPin, label: 'Region',
-                      value: (district == null || district.isEmpty) ? region : '$region, $district',
+                        icon: LucideIcons.user,
+                        label: 'Resident',
+                        value: name,
+                        accentColor: const Color(0xFF16A34A)),
+                    if (phone != null && phone.isNotEmpty)
+                      _detailTile(
+                          icon: LucideIcons.phone,
+                          label: 'Phone',
+                          value: phone,
+                          accentColor: const Color(0xFF16A34A)),
+                    _detailTile(
+                      icon: LucideIcons.mapPin,
+                      label: 'Region',
+                      value: (district == null || district.isEmpty)
+                          ? region
+                          : '$region, $district',
                       accentColor: const Color(0xFF16A34A),
                     ),
                     if (area != null && area.isNotEmpty)
-                      _detailTile(icon: LucideIcons.navigation, label: 'Area', value: area, accentColor: const Color(0xFF16A34A)),
+                      _detailTile(
+                          icon: LucideIcons.navigation,
+                          label: 'Area',
+                          value: area,
+                          accentColor: const Color(0xFF16A34A)),
                     if (lat != null && lon != null)
                       _coordsTile(
                         context: context,
@@ -892,16 +1048,19 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
   }
 
   void _showSOSDetail(Map<String, dynamic> request) {
-    final lat         = (request['latitude']  as num?)?.toDouble();
-    final lon         = (request['longitude'] as num?)?.toDouble();
-    final name        = request['name']?.toString() ?? 'Unknown resident';
-    final location    = request['region_name']?.toString() ?? request['area_name']?.toString() ?? 'Unknown location';
+    final lat = (request['latitude'] as num?)?.toDouble();
+    final lon = (request['longitude'] as num?)?.toDouble();
+    final name = request['name']?.toString() ?? 'Unknown resident';
+    final location = request['region_name']?.toString() ??
+        request['area_name']?.toString() ??
+        'Unknown location';
     final statusLabel = request['status_label']?.toString() ?? 'Needs Help';
     final timestampVal = request['timestamp'];
-    final timeLabel   = timestampVal == null
+    final timeLabel = timestampVal == null
         ? 'Unknown time'
         : DateHelper.format(timestampVal, pattern: 'MMM d, yyyy • h:mm a');
-    final areaName    = request['area_name']?.toString();
+    final areaName = request['area_name']?.toString();
+    final phone = request['phone_number']?.toString();
 
     showDialog(
       context: context,
@@ -919,7 +1078,11 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                 padding: const EdgeInsets.fromLTRB(20, 18, 16, 22),
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Color(0xFF991B1B), Color(0xFFDC2626), Color(0xFFEF4444)],
+                    colors: [
+                      Color(0xFF991B1B),
+                      Color(0xFFDC2626),
+                      Color(0xFFEF4444)
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -929,55 +1092,93 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
                   children: [
                     Row(children: [
                       Container(
-                        width: 54, height: 54,
+                        width: 54,
+                        height: 54,
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.16),
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white.withOpacity(0.45)),
+                          border:
+                              Border.all(color: Colors.white.withOpacity(0.45)),
                         ),
-                        child: const Icon(LucideIcons.siren, color: Colors.white, size: 30),
+                        child: const Icon(LucideIcons.siren,
+                            color: Colors.white, size: 30),
                       ),
                       const SizedBox(width: 14),
-                      Expanded(child: Column(
+                      Expanded(
+                          child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text('SOS Request',
-                            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, height: 1.1)),
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.1)),
                           const SizedBox(height: 5),
                           Text(timeLabel,
-                            style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 13, fontWeight: FontWeight.w500)),
+                              style: TextStyle(
+                                  color: Colors.white.withOpacity(0.86),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500)),
                         ],
                       )),
-                      IconButton(tooltip: 'Close', onPressed: () => Navigator.pop(ctx),
-                        icon: const Icon(LucideIcons.x, color: Colors.white)),
+                      IconButton(
+                          tooltip: 'Close',
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(LucideIcons.x, color: Colors.white)),
                     ]),
                     const SizedBox(height: 18),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.16),
                         borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: Colors.white.withOpacity(0.28)),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.28)),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(LucideIcons.activity, color: Colors.white, size: 16),
+                        const Icon(LucideIcons.activity,
+                            color: Colors.white, size: 16),
                         const SizedBox(width: 8),
                         Text(statusLabel,
-                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800)),
                       ]),
                     ),
                   ],
                 ),
               ),
-              Flexible(child: SingleChildScrollView(
+              Flexible(
+                  child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _detailTile(icon: LucideIcons.user,   label: 'Resident',          value: name,     accentColor: const Color(0xFFDC2626)),
-                    _detailTile(icon: LucideIcons.mapPin, label: 'Reported Location', value: location, accentColor: const Color(0xFFDC2626)),
+                    _detailTile(
+                        icon: LucideIcons.user,
+                        label: 'Resident',
+                        value: name,
+                        accentColor: const Color(0xFFDC2626)),
+                    if (phone != null && phone.isNotEmpty)
+                      _detailTile(
+                          icon: LucideIcons.phone,
+                          label: 'Phone',
+                          value: phone,
+                          accentColor: const Color(0xFFDC2626)),
+                    _detailTile(
+                        icon: LucideIcons.mapPin,
+                        label: 'Reported Location',
+                        value: location,
+                        accentColor: const Color(0xFFDC2626)),
                     if (areaName != null && areaName.isNotEmpty)
-                      _detailTile(icon: LucideIcons.navigation, label: 'Area', value: areaName, accentColor: const Color(0xFFDC2626)),
+                      _detailTile(
+                          icon: LucideIcons.navigation,
+                          label: 'Area',
+                          value: areaName,
+                          accentColor: const Color(0xFFDC2626)),
                     if (lat != null && lon != null)
                       _coordsTile(
                         context: context,
@@ -1002,7 +1203,11 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
   }
 
   // Shared detail tile for both dialogs
-  Widget _detailTile({required IconData icon, required String label, required String value, required Color accentColor}) {
+  Widget _detailTile(
+      {required IconData icon,
+      required String label,
+      required String value,
+      required Color accentColor}) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 10),
@@ -1011,23 +1216,40 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.borderColor),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4))
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 38, height: 38,
-            decoration: BoxDecoration(color: accentColor.withOpacity(0.1), shape: BoxShape.circle),
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.1), shape: BoxShape.circle),
             child: Icon(icon, color: accentColor, size: 20),
           ),
           const SizedBox(width: 12),
-          Expanded(child: Column(
+          Expanded(
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
+              Text(label,
+                  style: TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
-              Text(value, style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w700, height: 1.25)),
+              Text(value,
+                  style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25)),
             ],
           )),
         ],
@@ -1079,19 +1301,29 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  width: 38, height: 38,
-                  decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle),
-                  child: const Icon(LucideIcons.crosshair, color: Colors.white, size: 20),
+                  width: 38,
+                  height: 38,
+                  decoration:
+                      BoxDecoration(color: accentColor, shape: BoxShape.circle),
+                  child: const Icon(LucideIcons.crosshair,
+                      color: Colors.white, size: 20),
                 ),
                 const SizedBox(width: 12),
-                Expanded(child: Column(
+                Expanded(
+                    child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Exact Coordinates (Tap to Verify)',
-                      style: _popStyle(color: labelColor, fontSize: 11, fontWeight: FontWeight.w800)),
+                        style: _popStyle(
+                            color: labelColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800)),
                     const SizedBox(height: 4),
                     Text('${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}',
-                      style: _interStyle(color: const Color(0xFF111827), fontSize: 14, fontWeight: FontWeight.w800)),
+                        style: _interStyle(
+                            color: const Color(0xFF111827),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800)),
                   ],
                 )),
                 const SizedBox(width: 8),
@@ -1118,8 +1350,10 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
             foregroundColor: Colors.white,
             elevation: 0,
             padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            textStyle:
+                const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
           ),
         ),
       ),
@@ -1151,7 +1385,7 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark  = AppTheme.isDark;
+    final isDark = AppTheme.isDark;
     final surface = isDark ? const Color(0xFF161A22) : Colors.white;
     final textSec = const Color(0xFF6B7280);
 
@@ -1162,15 +1396,25 @@ class _StatCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(20), // Highly-rounded corners (20px) matching the photo
+        borderRadius: BorderRadius.circular(
+            20), // Highly-rounded corners (20px) matching the photo
         border: Border.all(
-          color: isDark ? borderColor : const Color(0xFFE5E7EB), // Clean light-gray border in light mode
+          color: isDark
+              ? borderColor
+              : const Color(
+                  0xFFE5E7EB), // Clean light-gray border in light mode
         ),
         boxShadow: isDark
-            ? [BoxShadow(color: valueColor.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, 6))]
+            ? [
+                BoxShadow(
+                    color: valueColor.withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6))
+              ]
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.07), // Elevated premium gray shadow (slightly more pronounced)
+                  color: Colors.black.withOpacity(
+                      0.07), // Elevated premium gray shadow (slightly more pronounced)
                   blurRadius: 18,
                   spreadRadius: 1,
                   offset: const Offset(0, 4),
@@ -1189,7 +1433,8 @@ class _StatCard extends StatelessWidget {
             child: Icon(icon, color: iconColor, size: 18),
           ),
           const SizedBox(height: 12),
-          Text(value,
+          Text(
+            value,
             style: _interStyle(
               fontSize: 28,
               fontWeight: FontWeight.w800,
@@ -1201,7 +1446,8 @@ class _StatCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(label,
+          Text(
+            label,
             style: _popStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
@@ -1211,11 +1457,15 @@ class _StatCard extends StatelessWidget {
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 2),
-            Text(subtitle!,
-              maxLines: 1, overflow: TextOverflow.ellipsis,
+            Text(
+              subtitle!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: _interStyle(
                 fontSize: 10,
-                color: isDark ? valueColor.withOpacity(0.7) : valueColor.withOpacity(0.85),
+                color: isDark
+                    ? valueColor.withOpacity(0.7)
+                    : valueColor.withOpacity(0.85),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1235,7 +1485,8 @@ class _StatCard extends StatelessWidget {
         Positioned(
           left: 0,
           top: 24, // Separated from the top edge to look like a clean capsule
-          bottom: 24, // Separated from the bottom edge to look like a clean capsule
+          bottom:
+              24, // Separated from the bottom edge to look like a clean capsule
           child: Container(
             width: 4,
             decoration: BoxDecoration(
@@ -1262,20 +1513,28 @@ class _DarkCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final surface = AppTheme.isDark ? const Color(0xFF161A22) : Colors.white;
-    final border  = borderColor ?? (AppTheme.isDark ? const Color(0xFF252B38) : const Color(0xFFE5E7EB));
+    final border = borderColor ??
+        (AppTheme.isDark ? const Color(0xFF252B38) : const Color(0xFFE5E7EB));
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surface,
-        borderRadius: BorderRadius.circular(20), // Highly rounded (20px) like the other cards
+        borderRadius: BorderRadius.circular(
+            20), // Highly rounded (20px) like the other cards
         border: Border.all(color: border),
         boxShadow: AppTheme.isDark
-            ? [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 20, offset: const Offset(0, 6))]
+            ? [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6))
+              ]
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.06), // Elevated matching soft shadow
+                  color: Colors.black
+                      .withOpacity(0.06), // Elevated matching soft shadow
                   blurRadius: 18,
                   spreadRadius: 1,
                   offset: const Offset(0, 4),

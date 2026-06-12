@@ -8,6 +8,19 @@ class IncidentReport(models.Model):
     Model for community-reported incidents.
     Allows residents to report landslides, hazards, or other incidents.
     """
+
+    REVIEW_STATUS_CHOICES = [
+        ('PENDING', 'Pending Review'),
+        ('APPROVED', 'Approved'),
+        ('DECLINED', 'Declined'),
+    ]
+
+    HAZARD_LEVEL_CHOICES = [
+        ('LOW', 'Low'),
+        ('MEDIUM', 'Medium'),
+        ('HIGH', 'High'),
+        ('CRITICAL', 'Critical'),
+    ]
     
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -48,7 +61,7 @@ class IncidentReport(models.Model):
     )
 
     report_radius_km = models.FloatField(
-        default=50.0,
+        default=20.0,
         help_text="Approximate radius covered by this report"
     )
     
@@ -68,6 +81,31 @@ class IncidentReport(models.Model):
         default=False,
         help_text="Whether authorities have verified this report"
     )
+
+    review_status = models.CharField(
+        max_length=20,
+        choices=REVIEW_STATUS_CHOICES,
+        default='PENDING',
+    )
+
+    hazard_level = models.CharField(
+        max_length=20,
+        choices=HAZARD_LEVEL_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Authority-assigned level, available only for approved reports",
+    )
+
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='reviewed_incident_reports',
+        null=True,
+        blank=True,
+    )
+
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):
         place = self.region.name if self.region else self.area_name or 'Your location'

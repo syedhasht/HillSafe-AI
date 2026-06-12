@@ -16,6 +16,12 @@ from regions.models import Region
 
 SOS_COOLDOWN = timedelta(minutes=5)
 SOS_ACTIVE_WINDOW = timedelta(hours=12)
+REPORT_ACTIVE_WINDOW = timedelta(hours=24)
+REPORT_RADIUS_KM = 20.0
+
+
+def _is_authority(user):
+    return user.is_authenticated and getattr(user, 'role', '').upper() == 'AUTHORITY'
 
 
 class SubmitReportView(APIView):
@@ -29,7 +35,7 @@ class SubmitReportView(APIView):
       'latitude': float optional,
       'longitude': float optional,
       'area_name': str optional,
-      'report_radius_km': float optional, defaults to 50,
+      'report_radius_km': always enforced as 20 km by the backend,
       'image': file optional
     }
     """
@@ -43,8 +49,13 @@ class SubmitReportView(APIView):
         latitude = request.data.get('latitude')
         longitude = request.data.get('longitude')
         area_name = request.data.get('area_name') or ''
-        report_radius_km = request.data.get('report_radius_km') or 50
         image = request.FILES.get('image')
+
+        if image:
+            if image.size > 10 * 1024 * 1024:
+                return Response({'error': 'Image must be 10 MB or smaller'}, status=status.HTTP_400_BAD_REQUEST)
+            if not (image.content_type or '').startswith('image/'):
+                return Response({'error': 'Only image attachments are allowed'}, status=status.HTTP_400_BAD_REQUEST)
         
         # Validation
         if not description:
@@ -72,10 +83,9 @@ class SubmitReportView(APIView):
         try:
             latitude = float(latitude) if latitude not in (None, '') else None
             longitude = float(longitude) if longitude not in (None, '') else None
-            report_radius_km = float(report_radius_km)
         except (ValueError, TypeError):
             return Response(
-                {'error': 'latitude, longitude, and report_radius_km must be valid numbers when provided'},
+                {'error': 'latitude and longitude must be valid numbers when provided'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -93,11 +103,11 @@ class SubmitReportView(APIView):
             latitude=latitude,
             longitude=longitude,
             area_name=str(area_name)[:255],
-            report_radius_km=report_radius_km,
+            report_radius_km=REPORT_RADIUS_KM,
             image=image
         )
         
-        serializer = IncidentReportSerializer(incident_report)
+        serializer = IncidentReportSerializer(incident_report, context={'request': request})
         
         return Response(
             {
@@ -307,7 +317,7 @@ class MyReportsView(APIView):
     
     def get(self, request):
         reports = IncidentReport.objects.filter(user=request.user)
-        serializer = IncidentReportSerializer(reports, many=True)
+        serializer = IncidentReportSerializer(reports, many=True, context={'request': request})
         
         return Response(
             {
@@ -328,10 +338,22 @@ class ReportListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request):
+        if not _is_authority(request.user):
+            return Response({'error': 'Authority access required'}, status=status.HTTP_403_FORBIDDEN)
+
         # Allow checking all reports or filtering by region
         region_id = request.query_params.get('region_id')
         
-        reports = IncidentReport.objects.all().select_related('user', 'region').order_by('-timestamp')
+        cutoff = timezone.now() - REPORT_ACTIVE_WINDOW
+        reports = (
+            IncidentReport.objects
+            .filter(
+                Q(review_status='APPROVED', expires_at__gt=timezone.now())
+                | Q(review_status__in=['PENDING', 'DECLINED'], timestamp__gte=cutoff)
+            )
+            .select_related('user', 'region', 'reviewed_by')
+            .order_by('-timestamp')
+        )
         
         if region_id:
             try:
@@ -339,9 +361,87 @@ class ReportListView(APIView):
             except ValueError:
                 pass
         
-        serializer = IncidentReportSerializer(reports, many=True)
+        serializer = IncidentReportSerializer(reports, many=True, context={'request': request})
         
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ReportReviewView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, report_id):
+        if not _is_authority(request.user):
+            return Response({'error': 'Authority access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            report = IncidentReport.objects.get(id=report_id)
+        except IncidentReport.DoesNotExist:
+            return Response({'error': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        action = (request.data.get('action') or '').upper()
+        if action not in {'APPROVE', 'DECLINE'}:
+            return Response({'error': 'action must be APPROVE or DECLINE'}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+        report.reviewed_by = request.user
+        report.reviewed_at = now
+
+        if action == 'APPROVE':
+            hazard_level = (request.data.get('hazard_level') or '').upper()
+            if hazard_level not in dict(IncidentReport.HAZARD_LEVEL_CHOICES):
+                return Response(
+                    {'error': 'hazard_level must be LOW, MEDIUM, HIGH, or CRITICAL'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if report.latitude is None or report.longitude is None:
+                return Response(
+                    {'error': 'A report requires coordinates before it can become a hazard zone'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            report.review_status = 'APPROVED'
+            report.hazard_level = hazard_level
+            report.is_verified = True
+            report.report_radius_km = REPORT_RADIUS_KM
+            report.expires_at = now + REPORT_ACTIVE_WINDOW
+        else:
+            report.review_status = 'DECLINED'
+            report.hazard_level = None
+            report.is_verified = False
+            report.expires_at = None
+
+        report.save(update_fields=[
+            'review_status', 'hazard_level', 'is_verified', 'report_radius_km',
+            'reviewed_by', 'reviewed_at', 'expires_at',
+        ])
+        if action == 'APPROVE':
+            from data_ingestion.map_updates import send_authority_map_update
+            send_authority_map_update('resident_report_approved')
+        return Response(
+            IncidentReportSerializer(report, context={'request': request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class ActiveReportZonesView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        reports = (
+            IncidentReport.objects
+            .filter(
+                review_status='APPROVED',
+                expires_at__gt=timezone.now(),
+                latitude__isnull=False,
+                longitude__isnull=False,
+            )
+            .select_related('user', 'region', 'reviewed_by')
+            .order_by('-reviewed_at')
+        )
+        return Response(
+            IncidentReportSerializer(reports, many=True, context={'request': request}).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class SubmitSOSView(APIView):
@@ -451,6 +551,8 @@ class SOSListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
+        if not _is_authority(request.user):
+            return Response({'error': 'Authority access required'}, status=status.HTTP_403_FORBIDDEN)
         active_since = timezone.now() - SOS_ACTIVE_WINDOW
         requests = (
             SOSRequest.objects

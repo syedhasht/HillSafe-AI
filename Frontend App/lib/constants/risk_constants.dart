@@ -7,6 +7,9 @@
 ///   High:     0.50 – 0.69 (50–70%)
 ///   Critical: ≥ 0.70 (≥ 70%)
 class RiskConstants {
+  /// Geographic radius used for monitored hazard zones on every map.
+  static const double hazardZoneRadiusMeters = 20000.0;
+
   // Risk Score Thresholds (0.0 to 1.0 scale)
   /// Threshold for medium risk classification (>= 0.3 or 30%)
   static const double mediumThreshold = 0.3;

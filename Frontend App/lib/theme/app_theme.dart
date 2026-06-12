@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:frontend_app/theme/motion.dart';
 
 /// HillSafe AI — Clean Light Theme Design System
 class AppTheme {
@@ -19,7 +20,8 @@ class AppTheme {
   // ===== COLOR PALETTE =====
 
   /// Warm paper-white background (matches screenshot)
-  static Color get background => isDark ? const Color(0xFF0F172A) : lightBackground;
+  static Color get background =>
+      isDark ? const Color(0xFF0F172A) : lightBackground;
 
   /// Card / surface white
   static Color get surface => isDark ? const Color(0xFF1E293B) : lightSurface;
@@ -34,10 +36,12 @@ class AppTheme {
   static const Color accentTealLight = Color(0xFFE8F5F2);
 
   /// Text — near black
-  static Color get textPrimary => isDark ? const Color(0xFFF8FAFC) : lightTextPrimary;
+  static Color get textPrimary =>
+      isDark ? const Color(0xFFF8FAFC) : lightTextPrimary;
 
   /// Text — grey subtitle
-  static Color get textSecondary => isDark ? const Color(0xFF94A3B8) : lightTextSecondary;
+  static Color get textSecondary =>
+      isDark ? const Color(0xFF94A3B8) : lightTextSecondary;
 
   /// Text — light hint
   static Color get textHint => isDark ? const Color(0xFF64748B) : lightTextHint;
@@ -46,7 +50,8 @@ class AppTheme {
   static const Color textOnDark = Color(0xFFFFFFFF);
 
   /// Divider / border
-  static Color get borderColor => isDark ? const Color(0xFF334155) : lightBorderColor;
+  static Color get borderColor =>
+      isDark ? const Color(0xFF334155) : lightBorderColor;
 
   /// Success green
   static const Color success = Color(0xFF16A34A);
@@ -69,6 +74,16 @@ class AppTheme {
   static const double spacingMedium = 16.0;
   static const double spacingLarge = 24.0;
   static const double spacingXLarge = 32.0;
+
+  static const PageTransitionsTheme pageTransitions = PageTransitionsTheme(
+    builders: {
+      TargetPlatform.android: HillSafePageTransitionsBuilder(),
+      TargetPlatform.iOS: HillSafePageTransitionsBuilder(),
+      TargetPlatform.linux: HillSafePageTransitionsBuilder(),
+      TargetPlatform.macOS: HillSafePageTransitionsBuilder(),
+      TargetPlatform.windows: HillSafePageTransitionsBuilder(),
+    },
+  );
 
   // ===== SHADOWS =====
 
@@ -116,6 +131,7 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: lightBackground,
       cardColor: lightSurface,
+      pageTransitionsTheme: pageTransitions,
 
       // Typography
       textTheme: TextTheme(
@@ -308,7 +324,7 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: darkBg,
       cardColor: darkCard,
-
+      pageTransitionsTheme: pageTransitions,
       textTheme: TextTheme(
         headlineLarge: GoogleFonts.poppins(
             fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white),
@@ -320,16 +336,15 @@ class AppTheme {
             fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white),
         titleMedium: GoogleFonts.inter(
             fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
-        bodyLarge: GoogleFonts.inter(
-            fontSize: 16, color: Colors.white, height: 1.5),
-        bodyMedium: GoogleFonts.inter(
-            fontSize: 14, color: Colors.white, height: 1.5),
+        bodyLarge:
+            GoogleFonts.inter(fontSize: 16, color: Colors.white, height: 1.5),
+        bodyMedium:
+            GoogleFonts.inter(fontSize: 14, color: Colors.white, height: 1.5),
         bodySmall: GoogleFonts.inter(
             fontSize: 12, color: const Color(0xFF94A3B8), height: 1.5),
         labelLarge: GoogleFonts.inter(
             fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
       ),
-
       appBarTheme: AppBarTheme(
         backgroundColor: darkSurface,
         foregroundColor: Colors.white,
@@ -346,14 +361,12 @@ class AppTheme {
             fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-
       cardTheme: CardThemeData(
         elevation: 0,
         color: darkCard,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(cardRadius)),
       ),
-
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: accentTeal,
@@ -365,7 +378,6 @@ class AppTheme {
               borderRadius: BorderRadius.circular(cardRadius)),
         ),
       ),
-
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: darkCard,
@@ -384,7 +396,6 @@ class AppTheme {
         hintStyle:
             GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 14),
       ),
-
       iconTheme: const IconThemeData(color: Colors.white, size: 24),
       dividerColor: const Color(0xFF334155),
     );

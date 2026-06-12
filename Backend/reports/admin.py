@@ -7,10 +7,10 @@ class IncidentReportAdmin(admin.ModelAdmin):
     """
     Admin interface for incident reports.
     """
-    list_display = ['id', 'user', 'region', 'area_name', 'report_radius_km', 'get_description_preview', 'timestamp', 'is_verified']
-    list_filter = ['is_verified', 'region', 'timestamp']
-    search_fields = ['user__username', 'region__name', 'description']
-    readonly_fields = ['timestamp']
+    list_display = ['id', 'user', 'region', 'review_status', 'hazard_level', 'area_name', 'report_radius_km', 'timestamp', 'expires_at']
+    list_filter = ['review_status', 'hazard_level', 'region', 'timestamp']
+    search_fields = ['user__username', 'user__phone_number', 'region__name', 'description']
+    readonly_fields = ['timestamp', 'reviewed_at', 'expires_at']
     date_hierarchy = 'timestamp'
     
     fieldsets = (
@@ -21,7 +21,7 @@ class IncidentReportAdmin(admin.ModelAdmin):
             'fields': ('area_name', 'latitude', 'longitude', 'report_radius_km')
         }),
         ('Status', {
-            'fields': ('is_verified', 'timestamp')
+            'fields': ('review_status', 'hazard_level', 'is_verified', 'reviewed_by', 'reviewed_at', 'expires_at', 'timestamp')
         }),
     )
     

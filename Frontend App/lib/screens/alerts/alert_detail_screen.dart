@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:frontend_app/theme/app_theme.dart';
+import 'package:frontend_app/constants/risk_constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:frontend_app/services/date_helper.dart';
 
@@ -293,7 +294,7 @@ class AlertDetailScreen extends StatelessWidget {
                       color: color.withOpacity(0.3),
                       borderColor: color,
                       borderStrokeWidth: 2,
-                      radius: 500,
+                      radius: RiskConstants.hazardZoneRadiusMeters,
                       useRadiusInMeter: true,
                     ),
                   ],

@@ -18,6 +18,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse
+from django.conf import settings
+from django.views.static import serve
 
 def api_root(request):
     return JsonResponse({
@@ -36,4 +38,5 @@ urlpatterns = [
     path("api/safety/", include("safety.urls")),
     path("api/accounts/", include("accounts.urls")),
     path("api/predict/", include("ml_engine.urls")),
+    path("media/<path:path>", serve, {"document_root": settings.MEDIA_ROOT}),
 ]
