@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1023,8 +1024,23 @@ class ApiService {
 
       // Add image if provided
       if (imagePath != null && imagePath.isNotEmpty) {
-        request.files
-            .add(await http.MultipartFile.fromPath('image', imagePath));
+        final extension = imagePath.split('.').last.toLowerCase();
+        final subtype = extension == 'png'
+            ? 'png'
+            : extension == 'gif'
+                ? 'gif'
+                : extension == 'webp'
+                    ? 'webp'
+                    : extension == 'heic' || extension == 'heif'
+                        ? 'heic'
+                        : 'jpeg';
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'image',
+            imagePath,
+            contentType: MediaType('image', subtype),
+          ),
+        );
         print('Image added to request');
       }
 

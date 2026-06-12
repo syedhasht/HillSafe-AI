@@ -9,6 +9,7 @@ from rest_framework.authentication import TokenAuthentication
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
+from PIL import Image, UnidentifiedImageError
 
 from .models import IncidentReport, SafetyStatus, SOSRequest
 from .serializers import IncidentReportSerializer, SafetyStatusSerializer
@@ -22,6 +23,18 @@ REPORT_RADIUS_KM = 20.0
 
 def _is_authority(user):
     return user.is_authenticated and getattr(user, 'role', '').upper() == 'AUTHORITY'
+
+
+def _has_image_signature(upload):
+    header = upload.read(16)
+    upload.seek(0)
+    return (
+        header.startswith(b'\xff\xd8\xff')
+        or header.startswith(b'\x89PNG\r\n\x1a\n')
+        or header.startswith((b'GIF87a', b'GIF89a'))
+        or (header.startswith(b'RIFF') and header[8:12] == b'WEBP')
+        or header[4:12] in {b'ftypheic', b'ftypheix', b'ftyphevc', b'ftypmif1'}
+    )
 
 
 class SubmitReportView(APIView):
@@ -54,8 +67,13 @@ class SubmitReportView(APIView):
         if image:
             if image.size > 10 * 1024 * 1024:
                 return Response({'error': 'Image must be 10 MB or smaller'}, status=status.HTTP_400_BAD_REQUEST)
-            if not (image.content_type or '').startswith('image/'):
-                return Response({'error': 'Only image attachments are allowed'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                Image.open(image).verify()
+                image.seek(0)
+            except (UnidentifiedImageError, OSError, ValueError):
+                image.seek(0)
+                if not _has_image_signature(image):
+                    return Response({'error': 'Only image attachments are allowed'}, status=status.HTTP_400_BAD_REQUEST)
         
         # Validation
         if not description:
