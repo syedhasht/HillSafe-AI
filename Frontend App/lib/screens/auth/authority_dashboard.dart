@@ -132,7 +132,8 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
           children: [
             Icon(LucideIcons.alertTriangle, color: _kRed, size: 24),
             const SizedBox(width: 10),
-            const Text('Clear All', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('Clear All',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ],
         ),
         content: Text(
@@ -148,7 +149,8 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: _kRed),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Clear All', style: TextStyle(color: Colors.white)),
+            child:
+                const Text('Clear All', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -157,7 +159,10 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
       final success = await clearAction();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(success ? '$title cleared successfully' : 'Failed to clear $title')),
+        SnackBar(
+            content: Text(success
+                ? '$title cleared successfully'
+                : 'Failed to clear $title')),
       );
       if (success) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -396,16 +401,23 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
               color: _kTeal, borderRadius: BorderRadius.circular(2)),
         ),
         const SizedBox(width: 8),
-        Text(
-          text,
-          style: _popStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.5,
-            color: _kTeal,
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _popStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.5,
+              color: _kTeal,
+            ),
           ),
         ),
-        if (trailing != null) ...[const Spacer(), trailing],
+        if (trailing != null) ...[
+          const SizedBox(width: 8),
+          trailing,
+        ],
       ],
     );
   }
@@ -495,7 +507,9 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
           final ts = DateTime.tryParse(alert['timestamp'] ?? '');
           if (ts != null && now.difference(ts).inHours < 24) {
             final existing = regionMap[regionId];
-            final existingTs = existing != null ? DateTime.tryParse(existing['timestamp'] ?? '') : null;
+            final existingTs = existing != null
+                ? DateTime.tryParse(existing['timestamp'] ?? '')
+                : null;
             if (existingTs == null || ts.isAfter(existingTs)) {
               regionMap[regionId] = alert;
             }
@@ -636,51 +650,58 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _sectionLabel(
-                  'RECENT SAFETY CHECK-INS',
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GestureDetector(
-                        onTap: () => _showClearConfirmation(
-                          title: 'Safety check-ins',
-                          itemName: 'safety check-ins',
-                          clearAction: () => _apiService.clearSafetyStatus(),
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _kRed.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: _kRed.withOpacity(0.4)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(LucideIcons.trash2, size: 11, color: _kRed),
-                              const SizedBox(width: 4),
-                              Text('Clear',
-                                  style: TextStyle(color: _kRed, fontSize: 10, fontWeight: FontWeight.w700)),
-                            ],
-                          ),
-                        ),
+                'RECENT SAFETY CHECK-INS',
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () => _showClearConfirmation(
+                        title: 'Safety check-ins',
+                        itemName: 'safety check-ins',
+                        clearAction: () => _apiService.clearSafetyStatus(),
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _greenDim(),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: _kGreen.withOpacity(0.4)),
+                          color: _kRed.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: _kRed.withOpacity(0.4)),
                         ),
-                        child: Text(
-                          '${checkins.length}',
-                          style: const TextStyle(
-                              color: _kGreen, fontSize: 12, fontWeight: FontWeight.w800),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.trash2, size: 11, color: _kRed),
+                            const SizedBox(width: 4),
+                            Text('Clear',
+                                style: TextStyle(
+                                    color: _kRed,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700)),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _greenDim(),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _kGreen.withOpacity(0.4)),
+                      ),
+                      child: Text(
+                        '${checkins.length}',
+                        style: const TextStyle(
+                            color: _kGreen,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
                 ),
+              ),
               const SizedBox(height: 14),
               if (loading)
                 LinearProgressIndicator(
@@ -801,51 +822,58 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _sectionLabel(
-                  'SOS REQUESTS',
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GestureDetector(
-                        onTap: () => _showClearConfirmation(
-                          title: 'SOS requests',
-                          itemName: 'SOS requests',
-                          clearAction: () => _apiService.clearSOSRequests(),
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _kRed.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: _kRed.withOpacity(0.4)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(LucideIcons.trash2, size: 11, color: _kRed),
-                              const SizedBox(width: 4),
-                              Text('Clear',
-                                  style: TextStyle(color: _kRed, fontSize: 10, fontWeight: FontWeight.w700)),
-                            ],
-                          ),
-                        ),
+                'SOS REQUESTS',
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () => _showClearConfirmation(
+                        title: 'SOS requests',
+                        itemName: 'SOS requests',
+                        clearAction: () => _apiService.clearSOSRequests(),
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _redDim(),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: _kRed.withOpacity(0.5)),
+                          color: _kRed.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: _kRed.withOpacity(0.4)),
                         ),
-                        child: Text(
-                          '${requests.length}',
-                          style: const TextStyle(
-                              color: _kRed, fontSize: 12, fontWeight: FontWeight.w800),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.trash2, size: 11, color: _kRed),
+                            const SizedBox(width: 4),
+                            Text('Clear',
+                                style: TextStyle(
+                                    color: _kRed,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700)),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _redDim(),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _kRed.withOpacity(0.5)),
+                      ),
+                      child: Text(
+                        '${requests.length}',
+                        style: const TextStyle(
+                            color: _kRed,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
                 ),
+              ),
               const SizedBox(height: 14),
               if (loading)
                 LinearProgressIndicator(
