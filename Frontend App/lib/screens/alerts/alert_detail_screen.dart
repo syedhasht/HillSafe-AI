@@ -352,26 +352,30 @@ class AlertDetailScreen extends StatelessWidget {
       case 'CRITICAL':
       case 'HIGH':
         instructions = [
-          'Move to higher ground immediately',
-          'Avoid steep slopes and river banks',
-          'Take emergency supplies if safe',
-          'Alert your neighbors',
-          'Follow designated evacuation routes',
+          'Immediate Evacuation: Move away from steep slopes, ridges, and drainage paths immediately. Seek shelter on stable, higher ground or in a designated safe community building.',
+          'Remain Calm & Confident: Emergency response teams (Rescue 1122) have been notified of your region\'s status. Follow their guidance and stay positive—help is active and coordinates are monitored.',
+          'Listen for Warning Signs: Stay alert to unusual sounds like trees cracking, boulders knocking together, or a low rumbling noise that might indicate shifting earth.',
+          'Check on Neighbors Safely: If it is safe to do so, assist children, the elderly, and those with limited mobility to ensure everyone evacuates safely together.',
+          'Secure Personal Safety: If caught inside and unable to escape, move to the safest, reinforced part of the structure (like under a heavy table) or curl into a tight ball to protect your head.',
+          'Limit Phone Usage: Keep communication lines clear by only using your phone for critical distress calls. Keep your phone in power-saving mode.',
         ];
         break;
       case 'MEDIUM':
         instructions = [
-          'Stay informed about changing conditions',
-          'Avoid unnecessary travel in risk areas',
-          'Prepare emergency kit just in case',
-          'Monitor local news channels',
+          'Prepare for Evacuation: Keep your emergency go-bag packed and accessible. Ensure it contains essential medicines, dry rations, clean drinking water, flashlights, and vital documents.',
+          'Observe Slope Conditions: Monitor the surrounding terrain. Watch for new cracks in the soil, tilted trees, leaning utility poles, or sudden pools of water appearing on slopes.',
+          'Avoid Hazard Routes: Avoid traveling along mountain highways, valleys, or areas known for landslides during heavy or persistent rainfall.',
+          'Stay Connected & Reassured: Check local broadcasts, radio channels, or the HillSafe app for regular safety bulletins. Ensure your family has a clear emergency meetup plan.',
+          'Secure Outdoor Items: Move any loose items or vehicles away from retaining walls and potential runoff paths to prevent additional debris movement.',
         ];
         break;
       default: // LOW
         instructions = [
-          'No immediate danger',
-          'Monitor weather updates',
-          'Report any unusual soil movement',
+          'Stay Informed: Keep track of daily weather forecasts, seasonal monsoon warnings, and local administrative safety advisories.',
+          'Inspect Retaining Structures: Conduct routine checks of retaining walls, hillside drainage channels, and slopes on your property for signs of settling or blockages.',
+          'Report Early Signs: Report any unusual soil displacement, fresh mud deposits, or new spring water channels to local authorities immediately.',
+          'Establish a Family Plan: Ensure everyone in your household knows emergency contact numbers (Rescue 1122) and coordinates for the nearest safe assembly point.',
+          'Maintain Readiness: Check that your basic emergency kit, flashlights, and first aid supplies are complete and ready for use if needed.',
         ];
     }
 
@@ -410,6 +414,10 @@ class AlertDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: AppTheme.spacingMedium),
             ...instructions.map((instruction) {
+              final parts = instruction.split(': ');
+              final title = parts.isNotEmpty ? parts[0] : '';
+              final body = parts.length > 1 ? parts.sublist(1).join(': ') : '';
+
               return Padding(
                 padding: const EdgeInsets.only(bottom: AppTheme.spacingSmall),
                 child: Row(
@@ -422,11 +430,24 @@ class AlertDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: AppTheme.spacingSmall),
                     Expanded(
-                      child: Text(
-                        instruction,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
+                      child: RichText(
+                        text: TextSpan(
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontFamily: 'Outfit',
+                          ),
+                          children: [
+                            if (title.isNotEmpty)
+                              TextSpan(
+                                text: '$title: ',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            TextSpan(
+                              text: body,
+                              style: TextStyle(color: Colors.white.withOpacity(0.9)),
+                            ),
+                          ],
                         ),
                       ),
                     ),
