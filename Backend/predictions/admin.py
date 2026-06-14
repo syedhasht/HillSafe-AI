@@ -57,13 +57,19 @@ class PredictionLogAdmin(admin.ModelAdmin):
             except PredictionLog.DoesNotExist:
                 pass
 
-        rainfall_changed = (
-            old_rainfall is not None
-            and obj.rainfall_mm is not None
-            and float(old_rainfall) != float(obj.rainfall_mm)
-        )
+        should_recalculate = False
+        if not change:
+            # New prediction log: calculate if rainfall is provided
+            should_recalculate = obj.rainfall_mm is not None
+        else:
+            # Existing log: calculate if rainfall is updated or was previously unset
+            if obj.rainfall_mm is not None:
+                if old_rainfall is None:
+                    should_recalculate = True
+                else:
+                    should_recalculate = float(old_rainfall) != float(obj.rainfall_mm)
 
-        if rainfall_changed and region:
+        if should_recalculate and region:
             # Re-run the ML pipeline with the new rainfall value so that
             # risk_score reflects the updated weather input.
             try:
