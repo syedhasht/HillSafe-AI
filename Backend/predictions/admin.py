@@ -30,10 +30,23 @@ class PredictionLogAdmin(admin.ModelAdmin):
              the risk score and update both the PredictionLog and the associated
              Region's current_risk_score.
           2. Persist the updated PredictionLog.
-          3. Delegate to RegionAdmin's alert logic so that a critical alert and
-             push notification are sent if the new risk score crosses the
-             CRITICAL_THRESHOLD.
+          3. Sync the risk score to the associated Region and delegate to RegionAdmin's
+             alert logic so that a critical alert and push notification are sent if
+             the risk score crosses the CRITICAL_THRESHOLD.
         """
+        from regions.models import Region
+        from regions.admin import _maybe_send_critical_alert
+        from data_ingestion.map_updates import send_authority_map_update
+
+        region = None
+        old_region_risk = 0.0
+        if obj.region_id:
+            try:
+                region = Region.objects.get(pk=obj.region_id)
+                old_region_risk = float(region.current_risk_score or 0)
+            except Region.DoesNotExist:
+                pass
+
         # Detect whether rainfall_mm was changed by comparing with DB value.
         old_rainfall = None
         if change and obj.pk:
@@ -50,7 +63,7 @@ class PredictionLogAdmin(admin.ModelAdmin):
             and float(old_rainfall) != float(obj.rainfall_mm)
         )
 
-        if rainfall_changed and obj.region_id:
+        if rainfall_changed and region:
             # Re-run the ML pipeline with the new rainfall value so that
             # risk_score reflects the updated weather input.
             try:
@@ -60,11 +73,6 @@ class PredictionLogAdmin(admin.ModelAdmin):
                     _get_or_create_terrain_sample,
                     _terrain_defaults_from_region,
                 )
-                from regions.models import Region
-                from regions.admin import _maybe_send_critical_alert
-
-                region = Region.objects.get(pk=obj.region_id)
-                old_region_risk = float(region.current_risk_score or 0)
 
                 predictor = HillSafePredictor()
                 if predictor.is_model_ready():
@@ -95,20 +103,11 @@ class PredictionLogAdmin(admin.ModelAdmin):
 
                     # Update the log's risk_score to match recalculated value.
                     obj.risk_score = new_risk_score
-
-                    # Persist the new risk score back to the Region.
-                    region.current_risk_score = new_risk_score
-                    region.save(update_fields=['current_risk_score', 'updated_at', 'last_updated'])
-
                     print(
                         f"[PredictionLogAdmin] Recalculated risk for {region.name}: "
                         f"rainfall {old_rainfall}→{obj.rainfall_mm} mm, "
                         f"risk {old_region_risk:.2f}→{new_risk_score:.2f}"
                     )
-
-                    # Fire critical alert / push notification if threshold crossed.
-                    _maybe_send_critical_alert(region, old_region_risk)
-
                 else:
                     print(
                         "[PredictionLogAdmin] ML model not ready. "
@@ -117,6 +116,20 @@ class PredictionLogAdmin(admin.ModelAdmin):
 
             except Exception as exc:
                 print(f"[PredictionLogAdmin] Error during risk recalculation: {exc}")
+
+        # Always sync the prediction log's risk score to the associated Region model
+        if region:
+            region.current_risk_score = obj.risk_score
+            region.save(update_fields=['current_risk_score', 'updated_at', 'last_updated'])
+
+            # Fire critical alert / push notification if threshold crossed.
+            _maybe_send_critical_alert(region, old_region_risk)
+
+            # Trigger map update notification to refresh frontend dashboards/maps
+            try:
+                send_authority_map_update('prediction_saved')
+            except Exception as exc:
+                print(f"[PredictionLogAdmin] Error triggering map update: {exc}")
 
         # Persist the PredictionLog record itself.
         super().save_model(request, obj, form, change)
