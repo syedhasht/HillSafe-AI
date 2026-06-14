@@ -15,27 +15,22 @@ class HillSafePageTransitionsBuilder extends PageTransitionsBuilder {
       return child;
     }
 
-    final theme = Theme.of(context);
-    final platform = theme.platform;
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
 
-    // Use CupertinoPageTransitionsBuilder for Apple platforms (native slide-in with swipe-back support)
-    if (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS) {
-      return CupertinoPageTransitionsBuilder().buildTransitions(
-        route,
-        context,
-        animation,
-        secondaryAnimation,
-        child,
-      );
-    }
-
-    // Use ZoomPageTransitionsBuilder for Android and desktop platforms (native Material zoom-in/fade)
-    return ZoomPageTransitionsBuilder().buildTransitions(
-      route,
-      context,
-      animation,
-      secondaryAnimation,
-      child,
+    // Light, hardware-accelerated fade and subtle horizontal slide transition
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curved),
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.08, 0.0), // subtle horizontal slide from the right
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
+      ),
     );
   }
 }
