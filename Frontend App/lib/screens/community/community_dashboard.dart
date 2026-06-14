@@ -15,6 +15,7 @@ import 'package:frontend_app/services/api_service.dart';
 import 'package:frontend_app/services/date_helper.dart';
 import 'package:frontend_app/screens/community/risk_map_screen.dart';
 import 'package:frontend_app/widgets/weather_risk_widget.dart';
+import 'package:frontend_app/services/map_update_service.dart';
 
 class CommunityDashboard extends StatefulWidget {
   const CommunityDashboard({super.key});
@@ -39,17 +40,23 @@ class _CommunityDashboardState extends State<CommunityDashboard>
   DateTime? _nextSOSAllowedAt;
   Timer? _safeUnlockTimer;
   Timer? _sosUnlockTimer;
+  StreamSubscription<String>? _mapUpdateSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadInitialData();
+    _mapUpdateSubscription = MapUpdateService.instance.updates.listen((_) {
+      print('CommunityDashboard: Map data updated, refreshing monitored regions...');
+      _loadInitialData();
+    });
   }
 
   @override
   void dispose() {
     _safeUnlockTimer?.cancel();
     _sosUnlockTimer?.cancel();
+    _mapUpdateSubscription?.cancel();
     super.dispose();
   }
 

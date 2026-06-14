@@ -13,7 +13,6 @@ def send_authority_map_update(reason):
 
             tokens = list(
                 DeviceToken.objects
-                .filter(user__role__iexact='AUTHORITY')
                 .values_list('token', flat=True)
             )
             for i in range(0, len(tokens), 500):

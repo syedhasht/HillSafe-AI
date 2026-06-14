@@ -122,6 +122,13 @@ class RegionAdmin(admin.ModelAdmin):
         # After saving, check whether we need to send a critical alert.
         _maybe_send_critical_alert(obj, old_risk_score)
 
+        # Trigger map update notification to refresh frontend dashboards/maps
+        try:
+            from data_ingestion.map_updates import send_authority_map_update
+            send_authority_map_update('region_saved')
+        except Exception as exc:
+            print(f"[RegionAdmin] Error triggering map update: {exc}")
+
 
 @admin.register(TerrainSample)
 class TerrainSampleAdmin(admin.ModelAdmin):
