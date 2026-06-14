@@ -20,7 +20,7 @@ class HillSafePageTransitionsBuilder extends PageTransitionsBuilder {
 
     // Use CupertinoPageTransitionsBuilder for Apple platforms (native slide-in with swipe-back support)
     if (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS) {
-      return const CupertinoPageTransitionsBuilder().buildTransitions(
+      return CupertinoPageTransitionsBuilder().buildTransitions(
         route,
         context,
         animation,
@@ -30,7 +30,7 @@ class HillSafePageTransitionsBuilder extends PageTransitionsBuilder {
     }
 
     // Use ZoomPageTransitionsBuilder for Android and desktop platforms (native Material zoom-in/fade)
-    return const ZoomPageTransitionsBuilder().buildTransitions(
+    return ZoomPageTransitionsBuilder().buildTransitions(
       route,
       context,
       animation,
