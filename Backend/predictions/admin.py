@@ -111,8 +111,8 @@ class PredictionLogAdmin(admin.ModelAdmin):
                     obj.risk_score = new_risk_score
                     print(
                         f"[PredictionLogAdmin] Recalculated risk for {region.name}: "
-                        f"rainfall {old_rainfall}→{obj.rainfall_mm} mm, "
-                        f"risk {old_region_risk:.2f}→{new_risk_score:.2f}"
+                        f"rainfall {old_rainfall} -> {obj.rainfall_mm} mm, "
+                        f"risk {old_region_risk:.2f} -> {new_risk_score:.2f}"
                     )
                 else:
                     print(

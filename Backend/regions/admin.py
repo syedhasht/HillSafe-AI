@@ -56,7 +56,7 @@ def _maybe_send_critical_alert(region, old_risk_score):
             )
             print(
                 f"[RegionAdmin] CRITICAL alert created for {region.name} "
-                f"(score {old_score:.2f} → {new_score:.2f})."
+                f"(score {old_score:.2f} -> {new_score:.2f})."
             )
 
             send_push_notification(region, new_score)

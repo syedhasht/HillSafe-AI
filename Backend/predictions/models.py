@@ -16,6 +16,8 @@ class PredictionLog(models.Model):
     )
     
     risk_score = models.FloatField(
+        default=0.0,
+        blank=True,
         help_text="Calculated risk score (0.0 to 1.0)"
     )
     
