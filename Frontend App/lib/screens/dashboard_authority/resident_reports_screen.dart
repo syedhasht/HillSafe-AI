@@ -141,9 +141,7 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
             content: Text(
                 action == 'APPROVE' ? 'Report approved' : 'Report declined')),
       );
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _refreshReports();
-      });
+      await _refreshReports();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -152,69 +150,88 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
     }
   }
 
-  void _showApproveDialog(Map<String, dynamic> report) {
+  Future<void> _showApproveDialog(Map<String, dynamic> report) async {
     String level = 'MEDIUM';
     final rawDesc = report['description']?.toString() ?? '';
     final parts = rawDesc.split(': ');
-    final userDesc = parts.length >= 2 ? parts.sublist(1).join(': ').trim() : rawDesc;
+    final userDesc =
+        parts.length >= 2 ? parts.sublist(1).join(': ').trim() : rawDesc;
     final notesController = TextEditingController(text: userDesc);
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Approve Hazard Report'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                  'Choose the hazard classification. It will appear on maps for 12 hours.'),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: level,
-                decoration: const InputDecoration(labelText: 'Hazard level'),
-                items: const ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
-                    .map((value) =>
-                        DropdownMenuItem(value: value, child: Text(value)))
-                    .toList(),
-                onChanged: (value) =>
-                    setDialogState(() => level = value ?? level),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: notesController,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  hintText: 'Edit the description or leave as-is...',
-                  border: OutlineInputBorder(),
+    try {
+      final result = await showDialog<Map<String, String>>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Approve Hazard Report'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                    'Choose the hazard classification. It will appear on maps for 12 hours.'),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((value) {
+                    final isSelected = level == value;
+                    return ChoiceChip(
+                      label: Text(value),
+                      selected: isSelected,
+                      onSelected: (_) => setDialogState(() => level = value),
+                      selectedColor: AppTheme.accentTeal,
+                      labelStyle: TextStyle(
+                        color: isSelected ? Colors.white : AppTheme.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    );
+                  }).toList(),
                 ),
-                maxLines: 3,
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: notesController,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    hintText: 'Edit the description or leave as-is...',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx, {
+                    'level': level,
+                    'notes': notesController.text.trim(),
+                  });
+                },
+                child: const Text('Approve'),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                },
-                child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () {
-                final notes = notesController.text.trim();
-                Navigator.pop(ctx);
-                _reviewReport(
-                  report,
-                  action: 'APPROVE',
-                  hazardLevel: level,
-                  reviewNotes: notes.isNotEmpty ? notes : null,
-                );
-              },
-              child: const Text('Approve'),
-            ),
-          ],
         ),
-      ),
-    ).whenComplete(notesController.dispose);
+      );
+
+      if (result == null || !mounted) return;
+
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (!mounted) return;
+
+      final notes = result['notes']?.trim() ?? '';
+      await _reviewReport(
+        report,
+        action: 'APPROVE',
+        hazardLevel: result['level'] ?? level,
+        reviewNotes: notes.isNotEmpty ? notes : null,
+      );
+    } finally {
+      notesController.dispose();
+    }
   }
 
   Future<void> _declineReport(Map<String, dynamic> report) async {
