@@ -159,7 +159,7 @@ def send_push_notification(region, risk_score, alert_radius_km=10):
         
         title = '⚠️ High Risk Alert!'
         body_message = (
-            f'Landslide risk detected in {region.name} ({int(risk_score * 100)}%). '
+            f'Landslide risk detected in {region.name} ({int(risk_score * 100)}%).\n'
             'Move away from slopes, riverbanks, unstable roads, and follow official safety guidance.'
         )
 

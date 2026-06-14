@@ -564,7 +564,7 @@ class CreateAlertView(APIView):
 
                     title = f'HillSafe AI Buzzer: {label}'
                     body_message = (
-                        f'{location_line}: {message} '
+                        f'{location_line}: {message}\n'
                         f'{safety_comment}'
                     )[:1000]
 

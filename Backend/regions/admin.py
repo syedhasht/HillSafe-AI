@@ -59,7 +59,7 @@ def _maybe_send_critical_alert(region, old_risk_score):
                 f"(score {old_score:.2f} → {new_score:.2f})."
             )
 
-            send_push_notification(region.name, new_score)
+            send_push_notification(region, new_score)
 
         except Exception as exc:
             print(f"[RegionAdmin] Error sending critical alert for {region.name}: {exc}")
