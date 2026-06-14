@@ -41,7 +41,7 @@ class IncidentReportSerializer(serializers.ModelSerializer):
     def get_region_district(self, obj):
         if obj.region:
             return obj.region.district
-        return '20 km radius'
+        return '10 km radius'
 
 
 class SafetyStatusSerializer(serializers.ModelSerializer):

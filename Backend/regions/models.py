@@ -36,12 +36,12 @@ class Region(models.Model):
     )
 
     danger_radius_km = models.FloatField(
-        default=5.0,
+        default=10.0,
         help_text="Distance from region center considered inside the hazard zone"
     )
 
     warning_radius_km = models.FloatField(
-        default=15.0,
+        default=10.0,
         help_text="Distance from region center considered near the hazard zone"
     )
     

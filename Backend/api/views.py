@@ -362,14 +362,16 @@ class AlertListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
-        return Alert.objects.all().order_by('-timestamp')
+        cutoff = timezone.now() - timezone.timedelta(hours=24)
+        Alert.objects.filter(timestamp__lt=cutoff).delete()
+        return Alert.objects.filter(timestamp__gte=cutoff).order_by('-timestamp')
 
 
 class CreateAlertView(APIView):
     """
     POST /api/alerts/create/
     Saves a new alert to the database and sends Firebase push notifications
-    to registered devices within 20 km of the selected region.
+    to registered resident devices within 10 km of the selected region.
 
     Request body:
         region_id            (int, required)
@@ -378,7 +380,7 @@ class CreateAlertView(APIView):
         affected_population  (int, optional, default 0)
     """
     permission_classes = [permissions.IsAuthenticated]
-    alert_radius_km = 20
+    alert_radius_km = 10
 
     def _distance_km(self, lat1, lon1, lat2, lon2):
         radius = 6371
@@ -395,6 +397,8 @@ class CreateAlertView(APIView):
     def post(self, request):
         from accounts.models import DeviceToken
 
+        Alert.objects.filter(timestamp__lt=timezone.now() - timezone.timedelta(hours=24)).delete()
+
         if getattr(request.user, 'role', '').upper() != 'AUTHORITY':
             return Response(
                 {'error': 'Only authority accounts can create alerts.'},
@@ -405,6 +409,8 @@ class CreateAlertView(APIView):
         send_to_all = request.data.get('send_to_all', False)
         if isinstance(send_to_all, str):
             send_to_all = send_to_all.lower() == 'true'
+        if region_id:
+            send_to_all = False
 
         severity = (request.data.get('severity') or 'HIGH').upper()
         message = (request.data.get('message') or '').strip()
@@ -444,7 +450,6 @@ class CreateAlertView(APIView):
             is_active=True,
         )
 
-        fallback_to_all_devices = False
         eligible_devices = DeviceToken.objects.exclude(user__role__iexact='AUTHORITY')
 
         # Estimate targeted devices count synchronously first (extremely fast database lookup)
@@ -467,11 +472,7 @@ class CreateAlertView(APIView):
                     )
                     if distance <= self.alert_radius_km:
                         nearby_tokens_count += 1
-                if nearby_tokens_count > 0:
-                    targeted_count = nearby_tokens_count
-                else:
-                    fallback_to_all_devices = True
-                    targeted_count = eligible_devices.count()
+                targeted_count = nearby_tokens_count
         except Exception:
             targeted_count = 0
 
@@ -527,9 +528,7 @@ class CreateAlertView(APIView):
                         )
                         if distance <= self.alert_radius_km:
                             nearby_tokens.append(device.token)
-                    tokens = nearby_tokens or list(
-                        eligible_devices.values_list('token', flat=True)
-                    )
+                    tokens = nearby_tokens
 
                 if tokens:
                     label = {
@@ -538,14 +537,28 @@ class CreateAlertView(APIView):
                         'MEDIUM': 'SAFETY ALERT',
                         'LOW': 'SAFETY UPDATE',
                     }.get(severity, severity)
+                    safety_comment = {
+                        'CRITICAL': 'Immediate danger possible. Move to a safer place, avoid slopes, riverbanks, unstable roads, and follow official evacuation guidance.',
+                        'HIGH': 'Serious risk conditions are present. Avoid travel, stay away from slopes and riverbanks, and prepare to move if instructed.',
+                        'MEDIUM': 'Stay alert and avoid unnecessary movement near slopes, river edges, blocked roads, or unstable ground.',
+                        'LOW': 'Stay aware of local weather and official updates.',
+                    }.get(severity, 'Stay alert and follow official safety guidance.')
+                    notification_icon = (
+                        'ic_red_buzzer'
+                        if severity in {'CRITICAL', 'HIGH'}
+                        else 'ic_normal_buzzer'
+                    )
 
                     if bg_region.name == 'All Regions':
                         location_line = 'All monitored regions'
                     else:
                         location_line = f'{bg_region.name}, {bg_region.district}'
 
-                    title = f'HillSafe AI: {label}'
-                    body_message = f'{location_line}: {message}'[:1000]
+                    title = f'HillSafe AI Buzzer: {label}'
+                    body_message = (
+                        f'{location_line}: {message} '
+                        f'{safety_comment}'
+                    )[:1000]
 
                     for i in range(0, len(tokens), 500):
                         chunk = tokens[i:i + 500]
@@ -560,6 +573,7 @@ class CreateAlertView(APIView):
                                 'region_name': bg_region.name,
                                 'title': title,
                                 'message': body_message,
+                                'safety_comment': safety_comment,
                                 'sound': 'default',
                             },
                             android=messaging.AndroidConfig(
@@ -567,8 +581,9 @@ class CreateAlertView(APIView):
                                 notification=messaging.AndroidNotification(
                                     title=title,
                                     body=body_message,
+                                    icon=notification_icon,
                                     sound='default',
-                                    channel_id='critical_alerts' if severity == 'CRITICAL' else 'risk_alerts',
+                                    channel_id='critical_alerts' if severity in {'CRITICAL', 'HIGH'} else 'risk_alerts',
                                 ),
                             ),
                             apns=messaging.APNSConfig(
@@ -600,7 +615,7 @@ class CreateAlertView(APIView):
             'alert_radius_km': self.alert_radius_km,
             'targeted_devices': targeted_count,
             'notifications_sent': targeted_count,
-            'fallback_to_all_devices': fallback_to_all_devices,
+            'fallback_to_all_devices': False,
             'message': 'Alert created and broadcast successfully.',
         }, status=status.HTTP_201_CREATED)
 

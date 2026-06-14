@@ -8,7 +8,7 @@
 ///   Critical: ≥ 0.70 (≥ 70%)
 class RiskConstants {
   /// Geographic radius used for monitored hazard zones on every map.
-  static const double hazardZoneRadiusMeters = 20000.0;
+  static const double hazardZoneRadiusMeters = 10000.0;
 
   // Risk Score Thresholds (0.0 to 1.0 scale)
   /// Threshold for medium risk classification (>= 0.3 or 30%)
@@ -39,13 +39,16 @@ class RiskConstants {
     // High risk (0.5-0.7): 3500-4500m
     // Critical risk (0.7-1.0): 4500-5000m
     if (riskScore >= criticalThreshold) {
-      final normalized = (riskScore - criticalThreshold) / (1.0 - criticalThreshold);
+      final normalized =
+          (riskScore - criticalThreshold) / (1.0 - criticalThreshold);
       return 4500.0 + (normalized * 500.0);
     } else if (riskScore >= highThreshold) {
-      final normalized = (riskScore - highThreshold) / (criticalThreshold - highThreshold);
+      final normalized =
+          (riskScore - highThreshold) / (criticalThreshold - highThreshold);
       return 3500.0 + (normalized * 1000.0);
     } else if (riskScore >= mediumThreshold) {
-      final normalized = (riskScore - mediumThreshold) / (highThreshold - mediumThreshold);
+      final normalized =
+          (riskScore - mediumThreshold) / (highThreshold - mediumThreshold);
       return 3000.0 + (normalized * 500.0);
     } else {
       final normalized = riskScore / mediumThreshold;
@@ -53,4 +56,3 @@ class RiskConstants {
     }
   }
 }
-

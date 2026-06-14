@@ -6,6 +6,7 @@ Provides endpoints to trigger data ingestion and processing with real weather da
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
+from django.utils import timezone
 from regions.models import Region
 from alerts.models import Alert
 from data_ingestion.services import fetch_weather_data
@@ -27,6 +28,7 @@ class TriggerIngestionView(APIView):
     permission_classes = [permissions.AllowAny]
     
     def post(self, request):
+        Alert.objects.filter(timestamp__lt=timezone.now() - timezone.timedelta(hours=24)).delete()
         regions = Region.objects.all()
         
         if not regions.exists():
@@ -90,9 +92,9 @@ class TriggerIngestionView(APIView):
                     alerts_created += 1
                     alert_created = True
                     
-                    # Send push notification to all registered devices
+                    # Send push notification only to resident devices inside the region radius.
                     from data_ingestion.services import send_push_notification
-                    send_push_notification(region.name, region.current_risk_score)
+                    send_push_notification(region, region.current_risk_score)
             
             results.append({
                 'region_id': region.id,

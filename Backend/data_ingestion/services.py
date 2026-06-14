@@ -93,14 +93,25 @@ def _generate_mock_data(region):
     return mock_data
 
 
-def send_push_notification(region_name, risk_score):
+def _distance_km(lat1, lon1, lat2, lon2):
+    import math
+
+    radius = 6371
+    d_lat = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(d_lon / 2) ** 2
+    )
+    return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def send_push_notification(region, risk_score, alert_radius_km=10):
     """
-    Send Firebase Cloud Messaging push notification to all registered devices
-    when high-risk conditions are detected.
-    
-    Args:
-        region_name: Name of the affected region
-        risk_score: Risk score (0-1 scale)
+    Send Firebase Cloud Messaging push notification to resident devices
+    within the affected region radius when high-risk conditions are detected.
     """
     try:
         import firebase_admin
@@ -125,18 +136,32 @@ def send_push_notification(region_name, risk_score):
 
         # Authority devices monitor alerts in the command center and should not
         # receive resident-facing push notifications.
-        tokens = list(
+        located_devices = (
             DeviceToken.objects
             .exclude(user__role__iexact='AUTHORITY')
-            .values_list('token', flat=True)
+            .exclude(latitude__isnull=True)
+            .exclude(longitude__isnull=True)
         )
+        tokens = []
+        for device in located_devices:
+            distance = _distance_km(
+                float(device.latitude),
+                float(device.longitude),
+                float(region.latitude),
+                float(region.longitude),
+            )
+            if distance <= alert_radius_km:
+                tokens.append(device.token)
         
         if not tokens:
             print(f"⚠️ No device tokens found. Skipping push notification.")
             return
         
         title = '⚠️ High Risk Alert!'
-        body_message = f'Landslide risk detected in {region_name} ({int(risk_score * 100)}%)'
+        body_message = (
+            f'Landslide risk detected in {region.name} ({int(risk_score * 100)}%). '
+            'Move away from slopes, riverbanks, unstable roads, and follow official safety guidance.'
+        )
 
         # Create high-priority notification message
         message = messaging.MulticastMessage(
@@ -147,7 +172,7 @@ def send_push_notification(region_name, risk_score):
             ),
             data={
                 'type': 'HIGH_RISK_ALERT',
-                'region': region_name,
+                'region': region.name,
                 'risk_score': str(risk_score),
                 'alert_type': 'HIGH_RISK',
                 'title': title,

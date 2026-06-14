@@ -18,7 +18,7 @@ from regions.models import Region
 SOS_COOLDOWN = timedelta(minutes=5)
 SOS_ACTIVE_WINDOW = timedelta(hours=12)
 REPORT_ACTIVE_WINDOW = timedelta(hours=24)
-REPORT_RADIUS_KM = 20.0
+REPORT_RADIUS_KM = 10.0
 
 
 def _is_authority(user):
@@ -48,7 +48,7 @@ class SubmitReportView(APIView):
       'latitude': float optional,
       'longitude': float optional,
       'area_name': str optional,
-      'report_radius_km': always enforced as 20 km by the backend,
+      'report_radius_km': always enforced as 10 km by the backend,
       'image': file optional
     }
     """

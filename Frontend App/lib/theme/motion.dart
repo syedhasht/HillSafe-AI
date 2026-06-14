@@ -17,17 +17,14 @@ class HillSafePageTransitionsBuilder extends PageTransitionsBuilder {
 
     final curved = CurvedAnimation(
       parent: animation,
-      curve: Curves.easeInOutCubic,
-      reverseCurve: Curves.easeInOutCubic,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeOutCubic,
     );
 
     return FadeTransition(
-      opacity: Tween<double>(begin: 0.88, end: 1).animate(curved),
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0.025, 0),
-          end: Offset.zero,
-        ).animate(curved),
+      opacity: Tween<double>(begin: 0.96, end: 1).animate(curved),
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.995, end: 1).animate(curved),
         child: child,
       ),
     );

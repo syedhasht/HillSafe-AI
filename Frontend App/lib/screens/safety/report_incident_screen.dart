@@ -21,7 +21,7 @@ class ReportIncidentScreen extends StatefulWidget {
 
 class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
   static const int _yourLocationRegionValue = -1;
-  static const double _yourLocationReportRadiusKm = 20.0;
+  static const double _yourLocationReportRadiusKm = 10.0;
 
   final _formKey = GlobalKey<FormState>();
   final _locationController = TextEditingController();
@@ -480,7 +480,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         items: [
           const DropdownMenuItem<int>(
             value: _yourLocationRegionValue,
-            child: Text('Your Location (20 km radius)'),
+            child: Text('Your Location (10 km radius)'),
           ),
           if (!includeOnlyYourLocation)
             ..._regions.map((region) {

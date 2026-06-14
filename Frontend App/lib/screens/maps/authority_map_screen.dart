@@ -246,7 +246,7 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen>
         title: Text('${report['hazard_level']} Resident Report'),
         content: Text(
           '${report['area_name'] ?? report['region_name'] ?? 'Reported location'}\n\n'
-          '${report['description'] ?? ''}\n\nApproved radius: 20 km',
+          '${report['description'] ?? ''}\n\nApproved radius: 10 km',
         ),
         actions: [
           TextButton(

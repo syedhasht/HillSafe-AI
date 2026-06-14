@@ -169,7 +169,8 @@ class NotificationService {
       await initialize();
     }
 
-    final isCritical = severity?.toUpperCase() == 'CRITICAL';
+    final severityLevel = severity?.toUpperCase();
+    final isCritical = severityLevel == 'CRITICAL' || severityLevel == 'HIGH';
     final channelId = isCritical ? 'critical_alerts' : 'risk_alerts';
     final largeIcon = isCritical ? 'ic_red_buzzer' : 'ic_normal_buzzer';
     final color = isCritical ? const Color(0xFFD32F2F) : const Color(0xFF0F172A);

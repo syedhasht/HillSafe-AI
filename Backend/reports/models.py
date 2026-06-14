@@ -61,7 +61,7 @@ class IncidentReport(models.Model):
     )
 
     report_radius_km = models.FloatField(
-        default=20.0,
+        default=10.0,
         help_text="Approximate radius covered by this report"
     )
     

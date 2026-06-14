@@ -279,7 +279,7 @@ class _RiskMapScreenState extends State<RiskMapScreen> {
         title: Text('${report['hazard_level']} Resident-Reported Hazard'),
         content: Text(
           '${report['area_name'] ?? report['region_name'] ?? 'Reported location'}\n\n'
-          '${report['description'] ?? ''}\n\nApproved by authorities. Active radius: 20 km.',
+          '${report['description'] ?? ''}\n\nApproved by authorities. Active radius: 10 km.',
         ),
         actions: [
           TextButton(
