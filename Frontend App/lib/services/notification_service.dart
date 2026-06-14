@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Notification Service
 /// 
@@ -102,6 +103,13 @@ class NotificationService {
     required double riskScore,
     String? message,
   }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+    if (!notificationsEnabled) {
+      print('NotificationService: Notifications are disabled in settings. Skipping showRiskNotification.');
+      return;
+    }
+
     if (!_isInitialized) {
       await initialize();
     }
@@ -158,13 +166,19 @@ class NotificationService {
     print('Risk notification sent: $regionName - ${(riskScore * 100).toInt()}%');
   }
 
-  /// Show general notification
   Future<void> showNotification({
     required String title,
     required String body,
     String? severity,
     String? payload,
   }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+    if (!notificationsEnabled) {
+      print('NotificationService: Notifications are disabled in settings. Skipping showNotification.');
+      return;
+    }
+
     if (!_isInitialized) {
       await initialize();
     }

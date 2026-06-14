@@ -426,7 +426,7 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
 
         final safetyData = (snapshot.data?[0] as Map<String, dynamic>?) ?? {};
         final regions = (snapshot.data?[1] as List<dynamic>?) ?? [];
-        final alerts = (snapshot.data?[2] as List<dynamic>?) ?? [];
+        final rawAlerts = (snapshot.data?[2] as List<dynamic>?) ?? [];
         final sosReqs = (snapshot.data != null && snapshot.data!.length > 3)
             ? (snapshot.data?[3] as List<dynamic>? ?? [])
             : [];
@@ -437,7 +437,22 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
             .where((r) =>
                 ((r['current_risk_score'] as num?)?.toDouble() ?? 0) >= 0.5)
             .length;
-        final alertCount = alerts.length;
+
+        final now = DateTime.now();
+        final regionMap = <dynamic, Map<String, dynamic>>{};
+        for (final item in rawAlerts) {
+          final alert = item as Map<String, dynamic>;
+          final regionId = alert['region'];
+          final ts = DateTime.tryParse(alert['timestamp'] ?? '');
+          if (ts != null && now.difference(ts).inHours < 24) {
+            final existing = regionMap[regionId];
+            final existingTs = existing != null ? DateTime.tryParse(existing['timestamp'] ?? '') : null;
+            if (existingTs == null || ts.isAfter(existingTs)) {
+              regionMap[regionId] = alert;
+            }
+          }
+        }
+        final alertCount = regionMap.length;
         final activeSosCount =
             sosReqs.where((s) => s['status'] != 'RESOLVED').length;
         final loading = snapshot.connectionState == ConnectionState.waiting;

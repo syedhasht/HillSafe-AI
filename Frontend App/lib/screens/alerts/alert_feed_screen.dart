@@ -74,15 +74,18 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
 
                   final allAlerts = snapshot.data ?? [];
 
-                  // Keep only the latest alert per region
+                  // Keep only the latest alert per region within the last 24 hours
                   final regionMap = <dynamic, Map<String, dynamic>>{};
+                  final now = DateTime.now();
                   for (final alert in allAlerts) {
                     final regionId = alert['region'];
-                    final existing = regionMap[regionId];
                     final ts = DateTime.tryParse(alert['timestamp'] ?? '');
-                    final existingTs = existing != null ? DateTime.tryParse(existing['timestamp'] ?? '') : null;
-                    if (ts != null && (existingTs == null || ts.isAfter(existingTs))) {
-                      regionMap[regionId] = alert;
+                    if (ts != null && now.difference(ts).inHours < 24) {
+                      final existing = regionMap[regionId];
+                      final existingTs = existing != null ? DateTime.tryParse(existing['timestamp'] ?? '') : null;
+                      if (existingTs == null || ts.isAfter(existingTs)) {
+                        regionMap[regionId] = alert;
+                      }
                     }
                   }
                   final alerts = regionMap.values.toList()

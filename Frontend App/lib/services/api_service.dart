@@ -238,6 +238,14 @@ class ApiService {
       final authToken = await getToken();
       if (authToken == null || authToken.isEmpty) return false;
 
+      // Check if notifications are enabled
+      final prefs = await SharedPreferences.getInstance();
+      final notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+      if (!notificationsEnabled) {
+        print('registerDeviceForAlerts: Notifications are disabled in settings, skipping.');
+        return false;
+      }
+
       final messaging = FirebaseMessaging.instance;
       await messaging.requestPermission(alert: true, badge: true, sound: true);
       final fcmToken = await messaging.getToken();

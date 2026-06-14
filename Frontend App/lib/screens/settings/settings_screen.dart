@@ -8,6 +8,9 @@ import 'package:frontend_app/providers/user_provider.dart';
 import 'package:frontend_app/providers/language_provider.dart';
 import 'package:frontend_app/services/api_service.dart';
 import 'package:frontend_app/screens/settings/privacy_policy_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:frontend_app/services/notification_service.dart';
 
 /// Settings Screen - App Configuration
 class SettingsScreen extends StatefulWidget {
@@ -34,7 +37,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           await langProv.setLanguage('en');
         }
       }
-      if (mounted) setState(() {});
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(() {
+          _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+        });
+      }
     });
   }
 
@@ -538,7 +546,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: Text(context.watch<LanguageProvider>().tr('Receive alerts in the app')),
             value: _notificationsEnabled,
             activeColor: AppTheme.accentTeal,
-            onChanged: (value) => setState(() => _notificationsEnabled = value),
+            onChanged: (value) async {
+              setState(() => _notificationsEnabled = value);
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('notifications_enabled', value);
+              if (!value) {
+                try {
+                  await FirebaseMessaging.instance.deleteToken();
+                  print('FCM Token deleted successfully.');
+                } catch (e) {
+                  print('Error deleting FCM Token: $e');
+                }
+                await NotificationService().cancelAll();
+              } else {
+                try {
+                  final position = await ApiService().getCurrentPosition();
+                  if (position != null) {
+                    await ApiService().registerDeviceForAlerts(
+                      latitude: position.latitude,
+                      longitude: position.longitude,
+                    );
+                  } else {
+                    final messaging = FirebaseMessaging.instance;
+                    await messaging.requestPermission(alert: true, badge: true, sound: true);
+                    await messaging.getToken();
+                  }
+                } catch (e) {
+                  print('Error registering device token: $e');
+                }
+              }
+            },
             contentPadding: EdgeInsets.zero,
           ),
         ],
