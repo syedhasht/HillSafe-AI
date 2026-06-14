@@ -12,6 +12,7 @@ from alerts.models import Alert
 from data_ingestion.services import fetch_weather_data
 from ml_engine.predictor import HillSafePredictor
 from ml_engine.risk_pipeline import predict_region_risk
+from predictions.logging import log_prediction
 
 
 class TriggerIngestionView(APIView):
@@ -70,6 +71,12 @@ class TriggerIngestionView(APIView):
             temperature = prediction['weather']['temperature']
             region.current_risk_score = prediction['risk_score']
             region.save(update_fields=['current_risk_score', 'updated_at', 'last_updated'])
+            log_prediction(
+                region,
+                prediction['risk_score'],
+                rainfall_mm=rainfall_mm,
+                soil_moisture=prediction['weather'].get('humidity'),
+            )
             updated_count += 1
             alert_created = False
             

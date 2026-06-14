@@ -13,6 +13,7 @@ import requests
 from regions.models import Region, TerrainSample
 from .predictor import HillSafePredictor
 from .safety_messages import get_safety_message
+from predictions.logging import log_prediction
 
 
 def _risk_level(score):
@@ -483,6 +484,12 @@ class PredictLocationRiskView(APIView):
             )
 
         if zone_status == 'outside_monitored_hazard_zone':
+            log_prediction(
+                nearest_region,
+                0.0,
+                rainfall_mm=weather['rainfall_mm'],
+                soil_moisture=weather['humidity'],
+            )
             return Response(
                 {
                     'risk_score': 0.0,
@@ -550,6 +557,12 @@ class PredictLocationRiskView(APIView):
             },
         )
         risk_level, is_safe = _risk_level(risk_score)
+        log_prediction(
+            nearest_region,
+            risk_score,
+            rainfall_mm=weather['rainfall_mm'],
+            soil_moisture=weather['humidity'],
+        )
 
         return Response(
             {

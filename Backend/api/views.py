@@ -12,6 +12,7 @@ from accounts.views import sync_role_profile
 from regions.models import Region
 from alerts.models import Alert
 from ml_engine.risk_pipeline import predict_region_risk
+from predictions.logging import log_prediction
 from .serializers import UserSerializer, RegionSerializer, AlertSerializer
 
 
@@ -351,6 +352,13 @@ def _refresh_stale_region_risks(max_age_minutes=15, max_regions=None):
             continue
         region.current_risk_score = prediction['risk_score']
         region.save(update_fields=['current_risk_score', 'updated_at', 'last_updated'])
+        weather = prediction.get('weather', {})
+        log_prediction(
+            region,
+            prediction['risk_score'],
+            rainfall_mm=weather.get('rainfall_mm'),
+            soil_moisture=weather.get('humidity'),
+        )
 
 
 class AlertListView(generics.ListAPIView):
