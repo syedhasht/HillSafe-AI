@@ -40,7 +40,8 @@ def _has_image_signature(upload):
 def _alert_nearby_users(report):
     """
     Send push notification to all users whose device location falls within
-    the hazard zone radius of an approved incident report.
+    the hazard zone radius of an approved incident report (same flow as
+    monitored-region alerts).
     """
     if report.latitude is None or report.longitude is None:
         return
@@ -48,10 +49,10 @@ def _alert_nearby_users(report):
         import firebase_admin
         from firebase_admin import messaging
         from accounts.models import DeviceToken
+        from django.conf import settings
 
         if not firebase_admin._apps:
             import os
-            from django.conf import settings
             def _get_path():
                 p1 = os.path.join(settings.BASE_DIR, 'serviceAccountKey.json')
                 if os.path.exists(p1):
@@ -69,6 +70,7 @@ def _alert_nearby_users(report):
             .select_related('user')
         )
 
+        radius = report.report_radius_km or 10
         tokens = []
         for device in located_devices:
             distance = _distance_km(
@@ -77,43 +79,47 @@ def _alert_nearby_users(report):
                 float(report.latitude),
                 float(report.longitude),
             )
-            if distance <= report.report_radius_km:
+            if distance <= radius:
                 tokens.append(device.token)
 
         if not tokens:
             print("No nearby users to alert for approved report.")
             return
 
-        hazard_display = dict(IncidentReport.HAZARD_LEVEL_CHOICES).get(
-            report.hazard_level, report.hazard_level or 'Hazard'
-        )
+        hazard_level = (report.hazard_level or 'MEDIUM').upper()
+        is_critical = hazard_level in {'HIGH', 'CRITICAL'}
         location = report.area_name or (report.region.name if report.region else 'Your area')
-        title = f'{hazard_display} Hazard Alert'
+        title = f'{"🚨" if is_critical else "⚠️"} {hazard_level} Hazard Alert'
         body_message = (
-            f'A {hazard_display.lower()} hazard has been confirmed in {location}. '
-            'Stay alert and follow official safety guidance.'
-        )
+            f'A {hazard_level.lower()} hazard has been confirmed in {location}. '
+            'Move away from slopes, riverbanks, unstable roads, and follow official safety guidance.'
+        )[:1000]
+
+        channel_id = 'critical_alerts' if is_critical else 'risk_alerts'
 
         message = messaging.MulticastMessage(
             tokens=tokens,
             notification=messaging.Notification(title=title, body=body_message),
             data={
                 'type': 'HAZARD_ZONE_ALERT',
-                'hazard_level': report.hazard_level or '',
+                'hazard_level': hazard_level,
                 'location': location,
                 'latitude': str(report.latitude),
                 'longitude': str(report.longitude),
-                'radius_km': str(report.report_radius_km),
+                'radius_km': str(radius),
                 'title': title,
                 'message': body_message,
                 'alert_type': 'HAZARD_ZONE',
+                'severity': hazard_level,
             },
             android=messaging.AndroidConfig(
                 priority='high',
                 notification=messaging.AndroidNotification(
-                    channel_id='hazard_alerts',
+                    title=title,
+                    body=body_message,
+                    sound='default',
+                    channel_id=channel_id,
                     priority='high',
-                    default_sound=True,
                 ),
             ),
             apns=messaging.APNSConfig(

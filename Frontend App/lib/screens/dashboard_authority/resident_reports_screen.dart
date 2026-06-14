@@ -141,7 +141,9 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
             content: Text(
                 action == 'APPROVE' ? 'Report approved' : 'Report declined')),
       );
-      await _refreshReports();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _refreshReports();
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -152,7 +154,9 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
 
   void _showApproveDialog(Map<String, dynamic> report) {
     String level = 'MEDIUM';
-    final userDesc = report['description']?.toString() ?? '';
+    final rawDesc = report['description']?.toString() ?? '';
+    final parts = rawDesc.split(': ');
+    final userDesc = parts.length >= 2 ? parts.sublist(1).join(': ').trim() : rawDesc;
     final notesController = TextEditingController(text: userDesc);
     showDialog(
       context: context,
