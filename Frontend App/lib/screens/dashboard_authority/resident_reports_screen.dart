@@ -195,14 +195,12 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
           actions: [
             TextButton(
                 onPressed: () {
-                  notesController.dispose();
                   Navigator.pop(ctx);
                 },
                 child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () {
                 final notes = notesController.text.trim();
-                notesController.dispose();
                 Navigator.pop(ctx);
                 _reviewReport(
                   report,
@@ -216,7 +214,7 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
           ],
         ),
       ),
-    );
+    ).whenComplete(notesController.dispose);
   }
 
   Future<void> _declineReport(Map<String, dynamic> report) async {
@@ -757,7 +755,10 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () => _showApproveDialog(report),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _showApproveDialog(report);
+                          },
                           child: const Text('Approve'),
                         ),
                       ),
