@@ -75,16 +75,65 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
     _refreshReports();
   }
 
+  Future<void> _showClearReportsConfirmation() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(LucideIcons.alertTriangle, color: Colors.red, size: 24),
+            const SizedBox(width: 10),
+            const Text('Clear All Reports',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'Are you sure? This will permanently delete all incident reports '
+          'and residents won\'t be able to see them.',
+          style: TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear All',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      final success = await _apiService.clearAllReports();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(success ? 'Reports cleared' : 'Failed to clear reports')),
+      );
+      if (success) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _refreshReports();
+        });
+      }
+    }
+  }
+
   Future<void> _reviewReport(
     Map<String, dynamic> report, {
     required String action,
     String? hazardLevel,
+    String? reviewNotes,
   }) async {
     try {
       await _apiService.reviewIncidentReport(
         (report['id'] as num).toInt(),
         action: action,
         hazardLevel: hazardLevel,
+        reviewNotes: reviewNotes,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -103,6 +152,8 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
 
   void _showApproveDialog(Map<String, dynamic> report) {
     String level = 'MEDIUM';
+    final userDesc = report['description']?.toString() ?? '';
+    final notesController = TextEditingController(text: userDesc);
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -113,7 +164,7 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                  'Choose the hazard classification. It will appear on maps for 24 hours.'),
+                  'Choose the hazard classification. It will appear on maps for 12 hours.'),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: level,
@@ -125,16 +176,36 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                 onChanged: (value) =>
                     setDialogState(() => level = value ?? level),
               ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: notesController,
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  hintText: 'Edit the description or leave as-is...',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
             ],
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx),
+                onPressed: () {
+                  notesController.dispose();
+                  Navigator.pop(ctx);
+                },
                 child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () {
+                final notes = notesController.text.trim();
+                notesController.dispose();
                 Navigator.pop(ctx);
-                _reviewReport(report, action: 'APPROVE', hazardLevel: level);
+                _reviewReport(
+                  report,
+                  action: 'APPROVE',
+                  hazardLevel: level,
+                  reviewNotes: notes.isNotEmpty ? notes : null,
+                );
               },
               child: const Text('Approve'),
             ),
@@ -159,6 +230,14 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
         foregroundColor: AppTheme.textPrimary,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        actions: [
+          TextButton.icon(
+            onPressed: () => _showClearReportsConfirmation(),
+            icon: Icon(LucideIcons.trash2, size: 16, color: AppTheme.textSecondary),
+            label: Text('Clear All',
+                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -664,7 +743,10 @@ class _ResidentReportsScreenState extends State<ResidentReportsScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => _declineReport(report),
+                          onPressed: () {
+                              Navigator.pop(ctx);
+                              _declineReport(report);
+                            },
                           child: const Text('Decline'),
                         ),
                       ),

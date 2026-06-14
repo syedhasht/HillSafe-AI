@@ -105,6 +105,13 @@ class IncidentReport(models.Model):
     )
 
     reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    review_notes = models.TextField(
+        blank=True,
+        default='',
+        help_text="Optional notes from the authority during review",
+    )
+
     expires_at = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):

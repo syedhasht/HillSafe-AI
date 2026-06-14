@@ -31,6 +31,51 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
     });
   }
 
+  Future<void> _showClearAlertsConfirmation() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(LucideIcons.alertTriangle, color: Colors.red, size: 24),
+            const SizedBox(width: 10),
+            const Text('Clear All Alerts', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'Are you sure? This will permanently delete all alerts '
+          'and residents won\'t be able to see them.',
+          style: TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear All', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      final success = await _apiService.clearAlerts();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(success ? 'Alerts cleared' : 'Failed to clear alerts')),
+      );
+      if (success) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _refreshAlerts();
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     context.watch<ThemeProvider>();
@@ -49,7 +94,14 @@ class _AlertFeedScreenState extends State<AlertFeedScreen> {
                 title: Text('Alert History',
                     style: TextStyle(color: AppTheme.textPrimary)),
                 foregroundColor: AppTheme.textPrimary,
-                actions: [],
+                actions: [
+                  TextButton.icon(
+                    onPressed: () => _showClearAlertsConfirmation(),
+                    icon: Icon(LucideIcons.trash2, size: 16, color: AppTheme.textSecondary),
+                    label: Text('Clear All',
+                        style: TextStyle(fontSize: 12, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+                  ),
+                ],
               ),
 
               // Alert List

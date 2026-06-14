@@ -17,7 +17,7 @@ from regions.models import Region
 
 SOS_COOLDOWN = timedelta(minutes=5)
 SOS_ACTIVE_WINDOW = timedelta(hours=12)
-REPORT_ACTIVE_WINDOW = timedelta(hours=24)
+REPORT_ACTIVE_WINDOW = timedelta(hours=12)
 REPORT_RADIUS_KM = 10.0
 
 
@@ -35,6 +35,104 @@ def _has_image_signature(upload):
         or (header.startswith(b'RIFF') and header[8:12] == b'WEBP')
         or header[4:12] in {b'ftypheic', b'ftypheix', b'ftyphevc', b'ftypmif1'}
     )
+
+
+def _alert_nearby_users(report):
+    """
+    Send push notification to all users whose device location falls within
+    the hazard zone radius of an approved incident report.
+    """
+    if report.latitude is None or report.longitude is None:
+        return
+    try:
+        import firebase_admin
+        from firebase_admin import messaging
+        from accounts.models import DeviceToken
+
+        if not firebase_admin._apps:
+            import os
+            from django.conf import settings
+            def _get_path():
+                p1 = os.path.join(settings.BASE_DIR, 'serviceAccountKey.json')
+                if os.path.exists(p1):
+                    return p1
+                p2 = os.path.join(os.path.dirname(settings.BASE_DIR), 'serviceAccountKey.json')
+                return p2 if os.path.exists(p2) else p1
+            cred = firebase_admin.credentials.Certificate(_get_path())
+            firebase_admin.initialize_app(cred)
+
+        located_devices = (
+            DeviceToken.objects
+            .exclude(user__role__iexact='AUTHORITY')
+            .exclude(latitude__isnull=True)
+            .exclude(longitude__isnull=True)
+            .select_related('user')
+        )
+
+        tokens = []
+        for device in located_devices:
+            distance = _distance_km(
+                float(device.latitude),
+                float(device.longitude),
+                float(report.latitude),
+                float(report.longitude),
+            )
+            if distance <= report.report_radius_km:
+                tokens.append(device.token)
+
+        if not tokens:
+            print("No nearby users to alert for approved report.")
+            return
+
+        hazard_display = dict(IncidentReport.HAZARD_LEVEL_CHOICES).get(
+            report.hazard_level, report.hazard_level or 'Hazard'
+        )
+        location = report.area_name or (report.region.name if report.region else 'Your area')
+        title = f'{hazard_display} Hazard Alert'
+        body_message = (
+            f'A {hazard_display.lower()} hazard has been confirmed in {location}. '
+            'Stay alert and follow official safety guidance.'
+        )
+
+        message = messaging.MulticastMessage(
+            tokens=tokens,
+            notification=messaging.Notification(title=title, body=body_message),
+            data={
+                'type': 'HAZARD_ZONE_ALERT',
+                'hazard_level': report.hazard_level or '',
+                'location': location,
+                'latitude': str(report.latitude),
+                'longitude': str(report.longitude),
+                'radius_km': str(report.report_radius_km),
+                'title': title,
+                'message': body_message,
+                'alert_type': 'HAZARD_ZONE',
+            },
+            android=messaging.AndroidConfig(
+                priority='high',
+                notification=messaging.AndroidNotification(
+                    channel_id='hazard_alerts',
+                    priority='high',
+                    default_sound=True,
+                ),
+            ),
+            apns=messaging.APNSConfig(
+                headers={'apns-priority': '5'},
+                payload=messaging.APNSPayload(
+                    aps=messaging.Aps(
+                        alert=messaging.ApsAlert(title=title, body=body_message),
+                        sound='default',
+                        badge=1,
+                    ),
+                ),
+            ),
+        )
+
+        response = messaging.send_each_for_multicast(message)
+        print(f"Hazard zone alert sent to {response.success_count} device(s).")
+    except Exception as e:
+        print(f"Error sending hazard zone alert: {e}")
+
 
 
 class SubmitReportView(APIView):
@@ -404,6 +502,7 @@ class ReportReviewView(APIView):
         now = timezone.now()
         report.reviewed_by = request.user
         report.reviewed_at = now
+        report.review_notes = (request.data.get('review_notes') or '').strip()
 
         if action == 'APPROVE':
             hazard_level = (request.data.get('hazard_level') or '').upper()
@@ -430,11 +529,12 @@ class ReportReviewView(APIView):
 
         report.save(update_fields=[
             'review_status', 'hazard_level', 'is_verified', 'report_radius_km',
-            'reviewed_by', 'reviewed_at', 'expires_at',
+            'reviewed_by', 'reviewed_at', 'expires_at', 'review_notes',
         ])
         if action == 'APPROVE':
             from data_ingestion.map_updates import send_authority_map_update
             send_authority_map_update('resident_report_approved')
+            _alert_nearby_users(report)
         return Response(
             IncidentReportSerializer(report, context={'request': request}).data,
             status=status.HTTP_200_OK,
@@ -675,3 +775,36 @@ def _serialize_sos(sos):
         'start_time': sos.start_time,
         'end_time': sos.end_time,
     }
+
+
+class ClearSafetyStatusView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not _is_authority(request.user):
+            return Response({'error': 'Authority access required'}, status=status.HTTP_403_FORBIDDEN)
+        count, _ = SafetyStatus.objects.all().delete()
+        return Response({'status': 'cleared', 'deleted': count}, status=status.HTTP_200_OK)
+
+
+class ClearSOSView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not _is_authority(request.user):
+            return Response({'error': 'Authority access required'}, status=status.HTTP_403_FORBIDDEN)
+        count, _ = SOSRequest.objects.all().delete()
+        return Response({'status': 'cleared', 'deleted': count}, status=status.HTTP_200_OK)
+
+
+class ClearReportsView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not _is_authority(request.user):
+            return Response({'error': 'Authority access required'}, status=status.HTTP_403_FORBIDDEN)
+        count, _ = IncidentReport.objects.all().delete()
+        return Response({'status': 'cleared', 'deleted': count}, status=status.HTTP_200_OK)

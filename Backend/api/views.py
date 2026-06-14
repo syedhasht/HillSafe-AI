@@ -562,7 +562,7 @@ class CreateAlertView(APIView):
                     else:
                         location_line = f'{bg_region.name}, {bg_region.district}'
 
-                    title = f'HillSafe AI Buzzer: {label}'
+                    title = f'🚨 {label}'
                     body_message = (
                         f'{location_line}: {message}\n'
                         f'{safety_comment}'
@@ -867,3 +867,13 @@ class MarkSafeView(APIView):
         except User.DoesNotExist:
             return Response({'success': False, 'error': 'User not found'},
                             status=status.HTTP_404_NOT_FOUND)
+
+
+class ClearAlertsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if getattr(request.user, 'role', '').upper() != 'AUTHORITY':
+            return Response({'error': 'Authority access required'}, status=status.HTTP_403_FORBIDDEN)
+        count, _ = Alert.objects.all().delete()
+        return Response({'status': 'cleared', 'deleted': count}, status=status.HTTP_200_OK)

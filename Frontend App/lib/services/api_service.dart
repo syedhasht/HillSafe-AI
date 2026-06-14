@@ -493,9 +493,14 @@ class ApiService {
   /// Returns safety status data map or empty map on error
   Future<Map<String, dynamic>> fetchSafetyStatus() async {
     try {
+      final token = await getToken();
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      if (token != null) {
+        headers['Authorization'] = 'Token $token';
+      }
       final response = await _client.get(
         Uri.parse('$baseUrl/safety-status/'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
       ).timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
@@ -1288,6 +1293,7 @@ class ApiService {
     int reportId, {
     required String action,
     String? hazardLevel,
+    String? reviewNotes,
   }) async {
     final token = await getToken();
     if (token == null) return null;
@@ -1302,6 +1308,7 @@ class ApiService {
           body: jsonEncode({
             'action': action,
             if (hazardLevel != null) 'hazard_level': hazardLevel,
+            if (reviewNotes != null) 'review_notes': reviewNotes,
           }),
         )
         .timeout(const Duration(seconds: 30));
@@ -1458,5 +1465,65 @@ class ApiService {
           errorMessage;
     } catch (_) {}
     throw Exception(errorMessage);
+  }
+
+  Future<bool> clearSafetyStatus() async {
+    try {
+      final token = await getToken();
+      if (token == null) return false;
+      final response = await _client.post(
+        Uri.parse('$baseUrl/reports/safety-status/clear/'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Token $token'},
+      ).timeout(const Duration(seconds: 30));
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error clearing safety status: $e');
+      return false;
+    }
+  }
+
+  Future<bool> clearSOSRequests() async {
+    try {
+      final token = await getToken();
+      if (token == null) return false;
+      final response = await _client.post(
+        Uri.parse('$baseUrl/reports/sos/clear/'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Token $token'},
+      ).timeout(const Duration(seconds: 30));
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error clearing SOS requests: $e');
+      return false;
+    }
+  }
+
+  Future<bool> clearAllReports() async {
+    try {
+      final token = await getToken();
+      if (token == null) return false;
+      final response = await _client.post(
+        Uri.parse('$baseUrl/reports/clear/'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Token $token'},
+      ).timeout(const Duration(seconds: 30));
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error clearing reports: $e');
+      return false;
+    }
+  }
+
+  Future<bool> clearAlerts() async {
+    try {
+      final token = await getToken();
+      if (token == null) return false;
+      final response = await _client.post(
+        Uri.parse('$baseUrl/alerts/clear/'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Token $token'},
+      ).timeout(const Duration(seconds: 30));
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error clearing alerts: $e');
+      return false;
+    }
   }
 }

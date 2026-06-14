@@ -4,7 +4,7 @@ from .views import (
     CustomLoginView, CustomLogoutView, AuthoritySignupView, RegionListView,
     AlertListView, CreateAlertView, AnalyticsView,
     SensorDataView, DistrictsView, SafetyStatusView,
-    MarkSafeView, HillSafeChatbotView,
+    MarkSafeView, HillSafeChatbotView, ClearAlertsView,
 )
 from .analytics_views import AnalyticsDetailView
 
@@ -28,4 +28,5 @@ urlpatterns = [
     path('safety-status/', SafetyStatusView.as_view(), name='api-safety-status'),
     path('mark-safe/', MarkSafeView.as_view(), name='api-mark-safe'),
     path('chatbot/', HillSafeChatbotView.as_view(), name='api-chatbot'),
+    path('alerts/clear/', ClearAlertsView.as_view(), name='clear-alerts'),
 ]

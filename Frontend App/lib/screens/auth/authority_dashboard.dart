@@ -118,6 +118,55 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
     }
   }
 
+  Future<void> _showClearConfirmation({
+    required String title,
+    required String itemName,
+    required Future<bool> Function() clearAction,
+  }) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(LucideIcons.alertTriangle, color: _kRed, size: 24),
+            const SizedBox(width: 10),
+            const Text('Clear All', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'Are you sure? This will permanently delete all $itemName '
+          'and residents won\'t be able to see them.',
+          style: const TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _kRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear All', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      final success = await clearAction();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(success ? '$title cleared successfully' : 'Failed to clear $title')),
+      );
+      if (success) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _refreshDashboardData();
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Watch ThemeProvider so every rebuild picks up the new AppTheme.isDark value
@@ -587,24 +636,51 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _sectionLabel(
-                'RECENT SAFETY CHECK-INS',
-                trailing: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _greenDim(),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _kGreen.withOpacity(0.4)),
-                  ),
-                  child: Text(
-                    '${checkins.length}',
-                    style: const TextStyle(
-                        color: _kGreen,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800),
+                  'RECENT SAFETY CHECK-INS',
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () => _showClearConfirmation(
+                          title: 'Safety check-ins',
+                          itemName: 'safety check-ins',
+                          clearAction: () => _apiService.clearSafetyStatus(),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _kRed.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: _kRed.withOpacity(0.4)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(LucideIcons.trash2, size: 11, color: _kRed),
+                              const SizedBox(width: 4),
+                              Text('Clear',
+                                  style: TextStyle(color: _kRed, fontSize: 10, fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _greenDim(),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: _kGreen.withOpacity(0.4)),
+                        ),
+                        child: Text(
+                          '${checkins.length}',
+                          style: const TextStyle(
+                              color: _kGreen, fontSize: 12, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
               const SizedBox(height: 14),
               if (loading)
                 LinearProgressIndicator(
@@ -725,24 +801,51 @@ class _AuthorityDashboardState extends State<AuthorityDashboard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _sectionLabel(
-                'SOS REQUESTS',
-                trailing: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _redDim(),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _kRed.withOpacity(0.5)),
-                  ),
-                  child: Text(
-                    '${requests.length}',
-                    style: const TextStyle(
-                        color: _kRed,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800),
+                  'SOS REQUESTS',
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () => _showClearConfirmation(
+                          title: 'SOS requests',
+                          itemName: 'SOS requests',
+                          clearAction: () => _apiService.clearSOSRequests(),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _kRed.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: _kRed.withOpacity(0.4)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(LucideIcons.trash2, size: 11, color: _kRed),
+                              const SizedBox(width: 4),
+                              Text('Clear',
+                                  style: TextStyle(color: _kRed, fontSize: 10, fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _redDim(),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: _kRed.withOpacity(0.5)),
+                        ),
+                        child: Text(
+                          '${requests.length}',
+                          style: const TextStyle(
+                              color: _kRed, fontSize: 12, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
               const SizedBox(height: 14),
               if (loading)
                 LinearProgressIndicator(

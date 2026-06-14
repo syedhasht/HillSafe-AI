@@ -9,6 +9,7 @@ import 'package:frontend_app/services/api_service.dart';
 import 'package:frontend_app/services/map_update_service.dart';
 import 'package:frontend_app/constants/risk_constants.dart';
 import 'package:frontend_app/theme/theme_provider.dart';
+import 'package:frontend_app/services/date_helper.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 
@@ -240,17 +241,54 @@ class _AuthorityMapScreenState extends State<AuthorityMapScreen>
   }
 
   void _showReportZoneDetails(Map<String, dynamic> report) {
+    final hazardLevel = report['hazard_level']?.toString() ?? 'REPORTED';
+    final color = _reportZoneColor(report);
+    final areaName = report['area_name']?.toString().trim();
+    final regionName = report['region_name']?.toString() ?? 'Your Location';
+    final place = areaName != null && areaName.isNotEmpty ? areaName : regionName;
+    final userDesc = report['description']?.toString() ?? '';
+    final reviewNotes = report['review_notes']?.toString() ?? '';
+    final description = reviewNotes.isNotEmpty ? reviewNotes : (userDesc.isNotEmpty ? userDesc : 'No description.');
+    final timeLabel = DateHelper.format(report['timestamp'], pattern: 'MMM d, yyyy • h:mm a');
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('${report['hazard_level']} Resident Report'),
-        content: Text(
-          '${report['area_name'] ?? report['region_name'] ?? 'Reported location'}\n\n'
-          '${report['description'] ?? ''}\n\nApproved radius: 10 km',
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(LucideIcons.triangleAlert, color: color, size: 22),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('$hazardLevel Hazard',
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _infoRow('Location', place),
+              const SizedBox(height: 10),
+              _infoRow('Hazard Level', hazardLevel),
+              const SizedBox(height: 10),
+              _infoRow('Reported', timeLabel),
+              const SizedBox(height: 14),
+              const Text('Description',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              const SizedBox(height: 6),
+              Text(description, style: const TextStyle(fontSize: 12, height: 1.35)),
+            ],
+          ),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Dismiss'),
+          ),
         ],
       ),
     );

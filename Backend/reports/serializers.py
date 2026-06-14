@@ -19,12 +19,12 @@ class IncidentReportSerializer(serializers.ModelSerializer):
             'id', 'user', 'user_name', 'phone_number', 'region', 'region_name', 'region_district',
             'description', 'latitude', 'longitude', 'area_name', 'image',
             'report_radius_km', 'timestamp', 'is_verified', 'review_status',
-            'hazard_level', 'reviewer_name', 'reviewed_at', 'expires_at',
+            'hazard_level', 'reviewer_name', 'reviewed_at', 'expires_at', 'review_notes',
         ]
         read_only_fields = [
             'id', 'user', 'timestamp', 'is_verified', 'user_name',
             'region_name', 'region_district', 'phone_number', 'review_status',
-            'hazard_level', 'reviewer_name', 'reviewed_at', 'expires_at',
+            'hazard_level', 'reviewer_name', 'reviewed_at', 'expires_at', 'review_notes',
         ]
 
     def get_phone_number(self, obj):
