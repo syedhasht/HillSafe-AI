@@ -28,8 +28,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Load local preferences immediately
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        if (mounted) {
+          setState(() {
+            _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+            _locationEnabled = prefs.getBool('location_enabled') ?? true;
+          });
+        }
+      } catch (e) {
+        print('Error loading preferences: $e');
+      }
+
       final userProv = context.read<UserProvider>();
-      await userProv.refreshProfileFromDb();
+      try {
+        await userProv.refreshProfileFromDb();
+      } catch (e) {
+        print('Error refreshing profile: $e');
+      }
+
       if (!mounted) return;
       if (userProv.userType == 'authority') {
         final langProv = context.read<LanguageProvider>();
@@ -37,12 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           await langProv.setLanguage('en');
         }
       }
-      final prefs = await SharedPreferences.getInstance();
-      if (mounted) {
-        setState(() {
-          _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
-        });
-      }
+      if (mounted) setState(() {});
     });
   }
 
@@ -610,7 +623,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: Text(context.watch<LanguageProvider>().tr('For accurate alerts')),
             value: _locationEnabled,
             activeColor: AppTheme.accentTeal,
-            onChanged: (value) => setState(() => _locationEnabled = value),
+            onChanged: (value) async {
+              setState(() => _locationEnabled = value);
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('location_enabled', value);
+            },
             contentPadding: EdgeInsets.zero,
           ),
           if (context.read<UserProvider>().userType != 'authority') ...[
